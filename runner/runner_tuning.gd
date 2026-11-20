@@ -25,8 +25,17 @@ extends Resource
 ## ramp's crest and down slopes and steps instead of briefly leaving it.
 @export var floor_snap_length: float = 0.25
 
+@export_group("Crouch")
+## The fastest the Runner moves from the Player's input while crouched, m/s.
+@export var crouch_speed: float = 3.0
+## Height of the Runner's body while low, m. Standing height is the body's height in the scene.
+@export var crouch_height: float = 0.9
+
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.
 @export var mouse_sensitivity: float = 0.0025
 ## Camera field of view, degrees (vertical).
 @export var fov: float = 90.0
+## How quickly the camera eases between standing and low eye height, 1/s. Higher is snappier;
+## about 3 / this is the time to get most of the way there, s.
+@export var camera_smoothing: float = 14.0

@@ -17,11 +17,31 @@ func before_test() -> void:
 
 
 func _ground_step(velocity: Vector3, wish: Vector3, normal := Vector3.UP, jump := false) -> Vector3:
-	return _movement.step(wish, jump, velocity, true, normal, _tuning, DELTA)
+	return _movement.step(wish, jump, false, true, velocity, true, normal, _tuning, DELTA)
 
 
 func _air_step(velocity: Vector3, wish := Vector3.ZERO, jump := false) -> Vector3:
-	return _movement.step(wish, jump, velocity, false, Vector3.UP, _tuning, DELTA)
+	return _movement.step(wish, jump, false, true, velocity, false, Vector3.UP, _tuning, DELTA)
+
+
+## A step on flat ground with crouch held or not, and room to stand above the Runner or not.
+func _crouch_step(
+	velocity: Vector3,
+	wish: Vector3,
+	crouch_held: bool,
+	can_stand := true,
+) -> Vector3:
+	return _movement.step(
+		wish,
+		false,
+		crouch_held,
+		can_stand,
+		velocity,
+		true,
+		Vector3.UP,
+		_tuning,
+		DELTA,
+	)
 
 
 func _horizontal_speed(velocity: Vector3) -> float:
@@ -268,3 +288,46 @@ func test_after_the_jump_timers_are_cleared_coyote_time_is_gone() -> void:
 		_ground_step(Vector3.ZERO, FORWARD)
 	_movement.clear_jump_timers()
 	assert_float(_air_step(Vector3(0.0, -1.0, 0.0), Vector3.ZERO, true).y).is_less(0.0)
+
+
+func test_crouching_from_rest_moves_low_and_at_most_at_crouch_speed() -> void:
+	var velocity := Vector3.ZERO
+	for frame: int in 60:
+		velocity = _crouch_step(velocity, FORWARD, true)
+		assert_float(_horizontal_speed(velocity)).is_less_equal(_tuning.crouch_speed + 0.001)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_tuning.crouch_speed, 0.001)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+	assert_bool(_movement.is_low()).is_true()
+
+
+func test_releasing_crouch_with_room_to_stand_returns_to_run() -> void:
+	var velocity := Vector3.ZERO
+	for frame: int in 30:
+		velocity = _crouch_step(velocity, FORWARD, true)
+	velocity = _crouch_step(velocity, FORWARD, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	assert_bool(_movement.is_low()).is_false()
+	for frame: int in 30:
+		velocity = _crouch_step(velocity, FORWARD, false)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_run_speed(), 0.001)
+
+
+func test_releasing_crouch_without_room_to_stand_stays_a_crouch_until_there_is_room() -> void:
+	var velocity := Vector3.ZERO
+	for frame: int in 30:
+		velocity = _crouch_step(velocity, FORWARD, true)
+	for frame: int in 60:
+		velocity = _crouch_step(velocity, FORWARD, false, false)
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+		assert_bool(_movement.is_low()).is_true()
+		assert_float(_horizontal_speed(velocity)).is_less_equal(_tuning.crouch_speed + 0.001)
+	_crouch_step(velocity, FORWARD, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+
+
+func test_landing_without_room_to_stand_is_a_crouch() -> void:
+	var falling := Vector3(0.0, -5.0, 0.0)
+	_air_step(falling)
+	assert_bool(_movement.is_low()).is_false()
+	_crouch_step(falling, FORWARD, false, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
