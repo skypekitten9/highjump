@@ -2,11 +2,31 @@ class_name Course
 extends Level
 ## The endless, straight Course: Sections laid end to end along the Course heading, which is the
 ## Course node's -Z. It begins with the start Section, with the Runner standing at its start.
+## Runs the Attempt too: it ends when the Runner falls or Stalls, and the end screen appears. Jump
+## or a click then starts a new Attempt: a fresh Runner on a freshly laid Course.
+
+## Emitted when the Attempt ends, by [param ending].
+signal attempt_ended(ending: Ending)
+
+## How an Attempt ended.
+enum Ending {
+	NONE,
+	FALL,
+	STALL,
+}
+
+## The shortest [member stall_time] can be, s. With none, the Runner would always have made no
+## progress in it.
+const MIN_STALL_TIME := 0.05
 
 ## The flat Section every Course begins with. Never picked again.
 @export var start_section: PackedScene = preload("res://course/sections/start.tscn")
 ## The Sections the Course picks from.
 @export var section_list: SectionList = preload("res://course/sections.tres")
+## The Runner the Course makes for each Attempt.
+@export var runner_scene: PackedScene = preload("res://runner/runner.tscn")
+## How far along the start Section the Runner starts each Attempt, m.
+@export_range(0.0, 30.0, 0.5, "or_greater", "suffix:m") var runner_start: float = 2.0
 ## Seed for picking Sections; 0 picks a fresh random Course each time.
 @export var course_seed := 0
 ## How far ahead of the Runner the laid Sections always reach, so the Player never sees the end, m.
@@ -18,6 +38,17 @@ extends Level
 ## How far along the Course a Section must start for difficulty 3 to be picked, m.
 @export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_3_unlock: float = 400.0
 
+## How far below floor height 0 the Runner's feet must be for it to have fallen, m.
+@export_range(0.0, 100.0, 0.5, "or_greater", "suffix:m") var fall_depth: float = 10.0
+## The Runner Stalls if it gets less than [member stall_progress] along the Course in this long, s.
+@export_range(0.1, 10.0, 0.05, "or_greater", "suffix:s") var stall_time: float = 1.0:
+	set(value):
+		stall_time = maxf(value, MIN_STALL_TIME)
+## How far along the Course the Runner must get in [member stall_time] not to Stall, m.
+@export_range(0.0, 10.0, 0.05, "or_greater", "suffix:m") var stall_progress: float = 1.0
+## Where the Best distance is saved between sessions.
+@export var best_distance_path := "user://best_distance.save"
+
 ## The Sections laid, in order along the Course.
 var _laid: Array[Section] = []
 ## How far along the Course the next Section starts, m.
@@ -26,23 +57,65 @@ var _rng := RandomNumberGenerator.new()
 ## The scene last picked from the list, which is never picked again straight after.
 var _last_picked: PackedScene
 var _difficulties: Dictionary[PackedScene, int] = { }
+var _ending := Ending.NONE
+## How long the Attempt has run, s.
+var _attempt_time := 0.0
+## How far along the Course the Runner was, as (time into the Attempt, m along), oldest first,
+## going back to the newest at least [member stall_time] old.
+var _progress: Array[Vector2] = []
+## The Distance: the furthest along the Course the Runner has got this Attempt, from where it
+## started, in whole metres.
+var _distance := 0
+## The Best distance: the greatest Distance of any Attempt, in whole metres.
+var _best_distance := 0
+
+var _runner: Runner
 
 @onready var _sections: Node3D = $Sections
-@onready var _runner: Runner = $Runner
+@onready var _end_screen: EndScreen = $EndScreen
+@onready var _hud: Hud = $Hud
 
 
 func _ready() -> void:
 	super()
-	if course_seed != 0:
-		_rng.seed = course_seed
-	_runner.course_heading = heading()
-	_lay(start_section)
-	_lay_ahead()
+	_best_distance = BestDistance.read(best_distance_path)
+	_start_attempt()
 
 
-func _physics_process(_delta: float) -> void:
+func _unhandled_input(event: InputEvent) -> void:
+	super(event)
+	if is_attempt_over() and _is_retry(event):
+		_start_attempt()
+
+
+func _physics_process(delta: float) -> void:
 	_lay_ahead()
 	_free_behind()
+	if not is_attempt_over():
+		_attempt_time += delta
+		_note_distance()
+		_check_for_end()
+
+
+## True once the Attempt has ended.
+func is_attempt_over() -> bool:
+	return _ending != Ending.NONE
+
+
+## How the Attempt ended; [constant Ending.NONE] while it runs.
+func ending() -> Ending:
+	return _ending
+
+
+## The Distance: how far along the Course heading the Runner has got this Attempt, from where it
+## started, in whole metres. Never goes down.
+func distance() -> int:
+	return _distance
+
+
+## The Best distance: the greatest Distance of any Attempt, kept between sessions, in whole metres.
+func best_distance() -> int:
+	return _best_distance
 
 
 ## The Course heading: the fixed direction in the world the Course leads in.
@@ -56,13 +129,98 @@ func sections() -> Array[Section]:
 
 
 ## How far along the Course the Runner is, m.
-func _runner_along() -> float:
+func runner_along() -> float:
 	return (_runner.global_position - global_position).dot(heading())
+
+
+## Starts an Attempt: the end screen gone, a fresh Runner standing still on the start Section,
+## and a freshly picked Course ahead of it. A seeded Course picks the same Sections every time.
+func _start_attempt() -> void:
+	for section: Section in _laid:
+		_sections.remove_child(section)
+		section.queue_free()
+	_laid.clear()
+	_end = 0.0
+	_last_picked = null
+	if course_seed != 0:
+		_rng.seed = course_seed
+	else:
+		_rng.randomize()
+	_ending = Ending.NONE
+	_attempt_time = 0.0
+	_progress.clear()
+	_distance = 0
+	_hud.show_distance(_distance)
+	_end_screen.hide()
+	_replace_runner()
+	_lay(start_section)
+	_lay_ahead()
+
+
+## Replaces the Runner, if there is one, with a fresh one standing at the start of the Course.
+func _replace_runner() -> void:
+	if _runner != null:
+		remove_child(_runner)
+		_runner.queue_free()
+	_runner = runner_scene.instantiate()
+	_runner.name = "Runner"
+	_runner.position = Vector3.FORWARD * runner_start
+	add_child(_runner)
+	_runner.course_heading = heading()
+
+
+## True if [param event] is the Player asking for a new Attempt: jump, or a click.
+func _is_retry(event: InputEvent) -> bool:
+	if event.is_action_pressed("jump"):
+		return true
+	var click := event as InputEventMouseButton
+	return click != null and click.pressed
+
+
+## Raises the Distance to where the Runner is now, if that is further, and shows it.
+func _note_distance() -> void:
+	_distance = maxi(_distance, floori(runner_along() - runner_start))
+	_hud.show_distance(_distance)
+
+
+## Ends the Attempt if the Runner has fallen or Stalled.
+func _check_for_end() -> void:
+	var feet := _runner.global_position.y - global_position.y
+	if feet < -fall_depth:
+		_end_attempt(Ending.FALL)
+	elif _has_stalled():
+		_end_attempt(Ending.STALL)
+
+
+## Notes how far along the Course the Runner is now, and true if it got less than
+## [member stall_progress] along it in the last [member stall_time]. Never true before the
+## Attempt has run that long.
+func _has_stalled() -> bool:
+	var along := runner_along()
+	_progress.append(Vector2(_attempt_time, along))
+	var since := _attempt_time - stall_time
+	while _progress.size() > 1 and _progress[1].x <= since:
+		_progress.pop_front()
+	var oldest := _progress[0]
+	return oldest.x <= since and along - oldest.y < stall_progress
+
+
+## Ends the Attempt by [param how]: the Runner stops responding, a Distance beyond the Best
+## distance is saved as the new one, and the end screen appears.
+func _end_attempt(how: Ending) -> void:
+	_ending = how
+	_runner.process_mode = Node.PROCESS_MODE_DISABLED
+	var new_best := _distance > _best_distance
+	if new_best:
+		_best_distance = _distance
+		BestDistance.write(best_distance_path, _best_distance)
+	_end_screen.show_ending(how, _distance, _best_distance, new_best)
+	attempt_ended.emit(how)
 
 
 ## Lays picked Sections until they reach [member keep_ahead] beyond the Runner.
 func _lay_ahead() -> void:
-	while _end < _runner_along() + keep_ahead:
+	while _end < runner_along() + keep_ahead:
 		var scene := _pick()
 		if scene == null:
 			return
@@ -104,7 +262,7 @@ func _difficulty_of(scene: PackedScene) -> int:
 
 ## Frees the Sections that ended more than [member keep_behind] behind the Runner.
 func _free_behind() -> void:
-	var behind := _runner_along() - keep_behind
+	var behind := runner_along() - keep_behind
 	while not _laid.is_empty() and _start_of(_laid[0]) + _laid[0].length < behind:
 		var gone: Section = _laid.pop_front()
 		gone.queue_free()
