@@ -65,3 +65,5 @@ extends Resource
 ## How quickly the camera eases between standing and low eye height, 1/s. Higher is snappier;
 ## about 3 / this is the time to get most of the way there, s.
 @export var camera_smoothing: float = 14.0
+## The camera stays at least this far below a ceiling directly overhead, m.
+@export var camera_ceiling_gap: float = 0.12

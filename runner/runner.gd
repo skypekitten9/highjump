@@ -5,8 +5,6 @@ extends CharacterBody3D
 ## body's height (low in a Slide or a Crouch) and the camera's height that follows it.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
-## The camera stays at least this far below a ceiling directly overhead, m.
-const CAMERA_CEILING_GAP := 0.12
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
@@ -104,13 +102,13 @@ func _ease_camera(delta: float) -> void:
 func _ceiling_eye_limit() -> float:
 	var low_eye := tuning.crouch_height - _eye_below_top
 	var from := global_position + Vector3.UP * low_eye
-	var to := global_position + Vector3.UP * (_standing_height + CAMERA_CEILING_GAP)
+	var to := global_position + Vector3.UP * (_standing_height + tuning.camera_ceiling_gap)
 	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
 	if hit.is_empty():
 		return INF
 	var ceiling := (hit["position"] as Vector3).y - global_position.y
-	return maxf(ceiling - CAMERA_CEILING_GAP, low_eye)
+	return maxf(ceiling - tuning.camera_ceiling_gap, low_eye)
 
 
 func _look(relative: Vector2) -> void:
