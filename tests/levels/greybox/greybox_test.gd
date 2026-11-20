@@ -86,6 +86,7 @@ func test_every_playtest_area_has_a_visible_label() -> void:
 			"Valley",
 			"Side-tilted slope",
 			"Crouch tunnel",
+			"Wall-run",
 		]
 	)
 
