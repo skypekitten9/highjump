@@ -1,0 +1,13 @@
+#!/bin/sh
+# Enabled with: git config core.hooksPath .githooks
+# GitHub branch protection isn't available on this plan, so block direct pushes
+# to main locally. Work on a branch and merge through a PR once CI passes.
+# Override in an emergency with: git push --no-verify
+
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+	if [ "$remote_ref" = "refs/heads/main" ]; then
+		echo "pre-push: direct pushes to main are blocked. Push a branch and open a PR." >&2
+		exit 1
+	fi
+done
+exit 0
