@@ -948,3 +948,46 @@ func test_with_the_mantle_dip_at_zero_the_camera_stays_level() -> void:
 	assert_int(during.size()).is_greater(5)
 	for pitch: float in during + after:
 		assert_float(pitch).is_equal_approx(0.0, 0.001)
+
+
+## Asserts the ledge probe finds the box of [method _world_with_box] with its top
+## [param top] above the floor.
+func _assert_probe_finds_top(top: float) -> void:
+	var world := _world_with_box(top)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.top_height).is_equal_approx(top, 0.02)
+
+
+func test_the_ledge_probe_finds_a_top_just_under_mantle_reach() -> void:
+	await _assert_probe_finds_top(_tuning.mantle_reach - 0.01)
+
+
+## A thin CSG slab floating ahead of the Runner at the origin, its front face at
+## [constant BOX_FACE_Z], its top [param top] above the floor: a lip with no face below it.
+func _world_with_thin_lip(top: float, thickness: float) -> Node3D:
+	var world := _world_with_floor()
+	_add_csg_box(
+		world,
+		Vector3(4.0, thickness, 4.0),
+		Vector3(0.0, top - thickness / 2.0, BOX_FACE_Z - 2.0),
+	)
+	return world
+
+
+func test_the_ledge_probe_finds_a_thin_lip_just_under_mantle_reach() -> void:
+	var top := _tuning.mantle_reach - 0.02
+	var world := _world_with_thin_lip(top, 0.06)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.top_height).is_equal_approx(top, 0.02)

@@ -12,7 +12,9 @@ const LEDGE_PROBE_AHEAD := 0.3
 ## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
 ## under the Runner for a top, m.
 const LEDGE_MIN_TOP := 0.05
-## Spacing of the ledge probe's rays up a face, from just above the feet to Mantle reach, m.
+## Greatest spacing of the ledge probe's rays up a face, m. They are spaced evenly from
+## [constant LEDGE_MIN_TOP] above the feet to as far below Mantle reach, so a face is found
+## however near its top is to the reach.
 const LEDGE_PROBE_SPACING := 0.2
 
 ## The feel values for this Runner.
@@ -160,14 +162,17 @@ func _touched_wall() -> RunnerMovement.WallContact:
 	return RunnerMovement.WallContact.new(normal, id)
 
 
-## The lowest hit of rays cast along [param heading] from the body's axis, from just above the
-## feet up to Mantle reach, on a face near enough vertical to be a wall; empty if none. Its
-## "opening" is the height above the feet of the first ray above that hit that finds nothing,
-## capped at Mantle reach: the face's top is below it.
+## The lowest hit of rays cast along [param heading] from the body's axis, spaced evenly from
+## just above the feet to just below Mantle reach, on a face near enough vertical to be a wall;
+## empty if none. Its "opening" is the height above the feet of the first ray above that hit that
+## finds nothing, or Mantle reach if none does: the face's top is below it.
 func _ledge_face(heading: Vector3) -> Dictionary:
+	var lowest := LEDGE_MIN_TOP
+	var highest := maxf(tuning.mantle_reach - LEDGE_MIN_TOP, lowest)
+	var gaps := ceili((highest - lowest) / LEDGE_PROBE_SPACING)
 	var face := { }
-	var height := LEDGE_PROBE_SPACING / 2.0
-	while height <= tuning.mantle_reach:
+	for index: int in gaps + 1:
+		var height := lerpf(lowest, highest, float(index) / gaps) if gaps > 0 else lowest
 		var from := global_position + Vector3.UP * height
 		var hit := _cast(from, from + heading * (_capsule.radius + LEDGE_PROBE_AHEAD))
 		if face.is_empty():
@@ -176,7 +181,6 @@ func _ledge_face(heading: Vector3) -> Dictionary:
 		elif hit.is_empty():
 			face["opening"] = height
 			return face
-		height += LEDGE_PROBE_SPACING
 	if not face.is_empty():
 		face["opening"] = tuning.mantle_reach
 	return face
