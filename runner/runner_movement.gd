@@ -81,17 +81,22 @@ func _init(tuning: RunnerTuning, standing_height: float) -> void:
 	_standing_height = standing_height
 
 
-## Returns the Runner's velocity for this physics frame.
+## Returns the Runner's velocity for this physics frame. A Mantle goes on until it ends. In a
+## Wall-run a waiting jump is a Wall-jump; otherwise a Mantle beats carrying on the run, and
+## beats starting one.
 func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> Vector3:
 	_elapsed += delta
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
 	if _state == State.MANTLE:
 		return _step_mantle(intent, contact, velocity, grounded, delta)
-	if _state == State.WALL_RUN:
-		return _step_wall_run(intent, contact, velocity, grounded, delta)
+	if _state == State.WALL_RUN and _jump_buffer_timer > 0.0 and not grounded:
+		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
+		return _finish(jump, false, contact)
 	if _starts_mantle(intent, contact, grounded):
 		return _finish(_start_mantle(contact, velocity), false, contact)
+	if _state == State.WALL_RUN:
+		return _step_wall_run(intent, contact, velocity, grounded, delta)
 	if _starts_wall_run(intent, contact, velocity, grounded):
 		return _finish(_start_wall_run(contact, velocity), false, contact)
 	return _step_off_wall(intent, contact, velocity, grounded, delta)
@@ -138,10 +143,9 @@ func clear_jump_timers() -> void:
 	_jump_buffer_timer = 0.0
 
 
-## A step in a Wall-run: a waiting jump is a Wall-jump; steering into the wall with its top
-## within reach Mantles onto it; otherwise the run goes on along the wall, or ends keeping its
-## velocity and the Runner moves as it would off the wall, so a landing goes on through the
-## ground states.
+## A step in a Wall-run with no Wall-jump or Mantle: the run goes on along the wall, or ends
+## keeping its velocity and the Runner moves as it would off the wall, so a landing goes on
+## through the ground states.
 func _step_wall_run(
 	intent: Intent,
 	contact: Contact,
@@ -149,11 +153,6 @@ func _step_wall_run(
 	grounded: bool,
 	delta: float,
 ) -> Vector3:
-	if _jump_buffer_timer > 0.0 and not grounded:
-		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
-		return _finish(jump, false, contact)
-	if _starts_mantle(intent, contact, grounded):
-		return _finish(_start_mantle(contact, velocity), false, contact)
 	var next_normal := _next_wall_normal(grounded, contact, velocity)
 	if not next_normal.is_zero_approx():
 		_locked_wall_id = contact.wall.id
