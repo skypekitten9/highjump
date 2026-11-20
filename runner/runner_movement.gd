@@ -5,12 +5,14 @@ extends RefCounted
 ## without a scene. It continues from whatever velocity it is given, so other mechanics can hand
 ## speed to it (see docs/adr/0004).
 
-## What the Runner is doing. A Slide and a Crouch are low; Run and Air stand where there is room.
+## What the Runner is doing. A Slide and a Crouch are low; Run, Air and a Wall-run stand where
+## there is room.
 enum State {
 	RUN,
 	AIR,
 	SLIDE,
 	CROUCH,
+	WALL_RUN,
 }
 
 ## Speed away from the floor plane above which a floor contact is ignored (leaving it), m/s.
@@ -34,6 +36,23 @@ var _last_floor_normal := Vector3.ZERO
 var _elapsed := 0.0
 ## [member _elapsed] when the last Slide began; far in the past if none has.
 var _last_slide_start := -INF
+## The velocity the last step returned, before the engine's collision changed it.
+var _last_velocity := Vector3.ZERO
+## Horizontal unit normal of the wall being run; meaningful only in a Wall-run.
+var _wall_normal := Vector3.ZERO
+## Horizontal unit direction the Wall-run runs in, along the wall.
+var _wall_direction := Vector3.ZERO
+## Horizontal unit normal of the wall the coyote time came from, or zero if it came from the
+## floor: a jump in that coyote time is a Wall-jump off that wall.
+var _coyote_wall_normal := Vector3.ZERO
+## True while the wall last run can't be run again: from the run's start until the Runner lands.
+var _wall_locked := false
+## Identity of the wall last run; meaningful only while [member _wall_locked].
+var _locked_wall_id := 0
+## Speed along the wall the last Wall-jump kept, until the next Wall-run starts or the Runner
+## lands; INF if there was none. The next Wall-run may be faster only up to the Top wall-run
+## speed, unless this was already faster.
+var _wall_jump_speed := INF
 
 
 func _init(tuning: RunnerTuning) -> void:
@@ -45,6 +64,87 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 	_elapsed += delta
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
+	if _state == State.WALL_RUN:
+		return _step_wall_run(intent, contact, velocity, grounded, delta)
+	if _starts_wall_run(intent, contact, velocity, grounded):
+		return _finish(_start_wall_run(contact, velocity), false, contact)
+	return _step_off_wall(intent, contact, velocity, grounded, delta)
+
+
+## True if the last step kept the Runner on the floor (it neither was airborne nor jumped),
+## so the body should be held down onto the floor even while climbing a slope.
+func is_on_ground() -> bool:
+	return not _last_floor_normal.is_zero_approx()
+
+
+## What the Runner was doing in the last step.
+func state() -> State:
+	return _state
+
+
+## Horizontal unit normal of the wall being run, or zero when not in a Wall-run.
+func wall_normal() -> Vector3:
+	return _wall_normal if _state == State.WALL_RUN else Vector3.ZERO
+
+
+## True if a surface with [param normal] is near enough vertical to be a wall.
+func is_wall(normal: Vector3) -> bool:
+	if Vector2(normal.x, normal.z).is_zero_approx():
+		return false
+	return absf(normal.normalized().y) <= sin(deg_to_rad(_tuning.wall_max_tilt))
+
+
+## True if the last step was a Slide that carries on after crouch was released.
+func is_slide_released() -> bool:
+	return _state == State.SLIDE and _slide_released
+
+
+## True if the body should be low after the last step: in a Slide or a Crouch, or still low
+## from one with no room to stand yet, airborne included.
+func is_low() -> bool:
+	return _low
+
+
+## Forgets any waiting jump press and any coyote time. For mechanics that hand control back
+## (the Vault), so a stale press doesn't fire afterwards.
+func clear_jump_timers() -> void:
+	_coyote_timer = 0.0
+	_jump_buffer_timer = 0.0
+
+
+## A step in a Wall-run: a waiting jump is a Wall-jump; otherwise the run goes on along the wall,
+## or ends keeping its velocity and the Runner moves as it would off the wall, so a landing goes
+## on through the ground states.
+func _step_wall_run(
+	intent: Intent,
+	contact: Contact,
+	velocity: Vector3,
+	grounded: bool,
+	delta: float,
+) -> Vector3:
+	if _jump_buffer_timer > 0.0 and not grounded:
+		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
+		return _finish(jump, false, contact)
+	var next_normal := _next_wall_normal(grounded, contact, velocity)
+	if not next_normal.is_zero_approx():
+		_locked_wall_id = contact.wall.id
+		return _finish(_wall_run(velocity, next_normal, delta), false, contact)
+	# Leaving the wall in the air starts a coyote time for a Wall-jump off it.
+	if not grounded:
+		_coyote_timer = _tuning.coyote_time
+		_coyote_wall_normal = _wall_normal
+	_go_airborne()
+	return _step_off_wall(intent, contact, velocity, grounded, delta)
+
+
+## A step on the ground or in the air, jumping if a jump is waiting and allowed.
+func _step_off_wall(
+	intent: Intent,
+	contact: Contact,
+	velocity: Vector3,
+	grounded: bool,
+	delta: float,
+) -> Vector3:
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	var vertical: float
 	if grounded:
@@ -78,44 +178,24 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 		horizontal = _air_horizontal(horizontal, intent.move_direction, delta)
 		vertical = velocity.y - _tuning.gravity * delta
 	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
-		vertical = maxf(vertical, sqrt(2.0 * _tuning.gravity * _tuning.jump_height))
+		if not _coyote_wall_normal.is_zero_approx():
+			var jump := _wall_jump(horizontal, _coyote_wall_normal)
+			return _finish(jump, false, contact)
+		vertical = maxf(vertical, _launch_speed())
 		clear_jump_timers()
 		grounded = false
 		_go_airborne()
+	return _finish(Vector3(horizontal.x, vertical, horizontal.z), grounded, contact)
+
+
+## Records what this step decided and returns [param velocity].
+func _finish(velocity: Vector3, grounded: bool, contact: Contact) -> Vector3:
 	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
 	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
 	# stand, even in the air, so it never stands up into a ceiling.
 	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
-	return Vector3(horizontal.x, vertical, horizontal.z)
-
-
-## True if the last step kept the Runner on the floor (it neither was airborne nor jumped),
-## so the body should be held down onto the floor even while climbing a slope.
-func is_on_ground() -> bool:
-	return not _last_floor_normal.is_zero_approx()
-
-
-## What the Runner was doing in the last step.
-func state() -> State:
-	return _state
-
-
-## True if the last step was a Slide that carries on after crouch was released.
-func is_slide_released() -> bool:
-	return _state == State.SLIDE and _slide_released
-
-
-## True if the body should be low after the last step: in a Slide or a Crouch, or still low
-## from one with no room to stand yet, airborne included.
-func is_low() -> bool:
-	return _low
-
-
-## Forgets any waiting jump press and any coyote time. For mechanics that hand control back
-## (the Vault), so a stale press doesn't fire afterwards.
-func clear_jump_timers() -> void:
-	_coyote_timer = 0.0
-	_jump_buffer_timer = 0.0
+	_last_velocity = velocity
+	return velocity
 
 
 func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> void:
@@ -124,6 +204,9 @@ func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> vo
 		_jump_buffer_timer = _tuning.jump_buffer_time
 	if grounded:
 		_coyote_timer = _tuning.coyote_time
+		_coyote_wall_normal = Vector3.ZERO
+		_wall_locked = false
+		_wall_jump_speed = INF
 	else:
 		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
 
@@ -248,6 +331,127 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 	return -(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
 
 
+## True if the Runner is in the air touching a surface near enough vertical to be a wall.
+func _touches_wall_in_air(contact: Contact, grounded: bool) -> bool:
+	return not grounded and contact.wall != null and is_wall(contact.wall.normal)
+
+
+## How head-on [param direction] meets a wall with horizontal unit [param normal], rad: 0 along
+## it or away from it, PI / 2 straight into it.
+func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
+	return asin(clampf(-direction.normalized().dot(normal), 0.0, 1.0))
+
+
+## True if the Runner meets a wall in the air that it can run: fast enough, at a glancing enough
+## angle, while the Player holds a direction into or along it, and it isn't the wall last run
+## since the Runner landed. Speed is measured before the collision took away the speed going
+## into the wall.
+func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
+	if not _touches_wall_in_air(contact, grounded):
+		return false
+	if _wall_locked and contact.wall.id == _locked_wall_id:
+		return false
+	var normal := _horizontal_unit(contact.wall.normal)
+	var horizontal := _before_wall_collision(velocity, normal)
+	var speed := horizontal.length()
+	if speed < _tuning.wall_run_entry_speed or is_zero_approx(speed):
+		return false
+	if _head_on_angle(horizontal, normal) > deg_to_rad(_tuning.wall_run_max_entry_angle):
+		return false
+	if _along_wall(horizontal, normal).is_zero_approx():
+		return false
+	if intent.move_direction.is_zero_approx():
+		return false
+	var away := intent.move_direction.normalized().dot(normal)
+	return away <= sin(deg_to_rad(_tuning.wall_run_input_angle))
+
+
+## Starts a Wall-run: all horizontal speed turns along the wall, falling speed is capped and
+## upward speed is kept (see docs/adr/0006). Speed a Wall-jump's push adds stops at the Top
+## wall-run speed. A jump pressed before meeting the wall is forgotten, so the run isn't cut
+## short by a Wall-jump as it starts.
+func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
+	var normal := _horizontal_unit(contact.wall.normal)
+	var horizontal := _before_wall_collision(velocity, normal)
+	clear_jump_timers()
+	_wall_locked = true
+	_locked_wall_id = contact.wall.id
+	_state = State.WALL_RUN
+	_slide_released = false
+	_wall_normal = normal
+	_wall_direction = _along_wall(horizontal, normal).normalized()
+	# The push of a Wall-jump that brought the Runner here gains speed only up to the cap.
+	var speed := minf(horizontal.length(), maxf(_wall_jump_speed, _tuning.top_wall_run_speed))
+	_wall_jump_speed = INF
+	var vertical := maxf(velocity.y, -_tuning.wall_run_max_entry_fall)
+	return _wall_direction * speed + Vector3.UP * vertical
+
+
+## Horizontal unit normal of the wall a Wall-run goes on along, or zero if the run ends. It goes
+## on while the Runner is in the air, touching a wall, and fast enough along it. That wall's
+## normal may turn by up to the follow angle from the one being run (a curve). A sharper turn
+## goes on only onto a wall blocking the run within the maximum entry angle (an inside corner);
+## a sharper turn away is an outside corner.
+func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> Vector3:
+	if not _touches_wall_in_air(contact, grounded):
+		return Vector3.ZERO
+	var normal := _horizontal_unit(contact.wall.normal)
+	var speed := _before_wall_collision(velocity, normal).dot(_wall_direction)
+	if speed < _tuning.wall_run_end_speed:
+		return Vector3.ZERO
+	if _wall_normal.angle_to(normal) <= deg_to_rad(_tuning.wall_run_follow_angle):
+		return normal
+	var head_on := _head_on_angle(_wall_direction, normal)
+	if head_on > 0.0 and head_on <= deg_to_rad(_tuning.wall_run_max_entry_angle):
+		return normal
+	return Vector3.ZERO
+
+
+## A Wall-run arcs under reduced gravity and slows gently along the wall with horizontal unit
+## [param normal], turning with it if it has turned. Input plays no part.
+func _wall_run(velocity: Vector3, normal: Vector3, delta: float) -> Vector3:
+	var along := _before_wall_collision(velocity, normal).dot(_wall_direction)
+	var speed := maxf(along - _tuning.wall_run_slowdown * delta, 0.0)
+	_wall_normal = normal
+	_wall_direction = _along_wall(_wall_direction, normal).normalized()
+	var vertical := velocity.y - _tuning.gravity * _tuning.wall_run_gravity_scale * delta
+	return _wall_direction * speed + Vector3.UP * vertical
+
+
+## Jumps off the wall with horizontal unit [param normal]: speed along it is kept, the Wall-jump
+## push is added straight away from it, and upward speed is the jump's launch speed.
+func _wall_jump(horizontal: Vector3, normal: Vector3) -> Vector3:
+	var along := _along_wall(horizontal, normal)
+	_wall_jump_speed = along.length()
+	clear_jump_timers()
+	_go_airborne()
+	return along + normal * _tuning.wall_jump_push + Vector3.UP * _launch_speed()
+
+
+## Upward speed of a jump, m/s.
+func _launch_speed() -> float:
+	return sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+
+
+## Horizontal velocity as it was before the engine's collision with the wall of [param normal]
+## took away the speed going into it: the speed toward the wall is whichever of [param velocity]
+## and the last step's velocity goes into it more. Speed away from a wall that curves away is
+## kept.
+func _before_wall_collision(velocity: Vector3, normal: Vector3) -> Vector3:
+	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
+	var toward := minf(horizontal.dot(normal), _last_velocity.dot(normal))
+	return _along_wall(horizontal, normal) + normal * toward
+
+
+## The part of [param horizontal] along a wall with horizontal unit [param normal].
+func _along_wall(horizontal: Vector3, normal: Vector3) -> Vector3:
+	return horizontal - normal * horizontal.dot(normal)
+
+
+func _horizontal_unit(vector: Vector3) -> Vector3:
+	return Vector3(vector.x, 0.0, vector.z).normalized()
+
+
 func _go_airborne() -> void:
 	_state = State.AIR
 	_slide_released = false
@@ -305,9 +509,31 @@ class Contact:
 	## The standing body fits where the Runner is: always true while it stands; while it is low,
 	## whether it could stand up here.
 	var headroom: bool
+	## The surface that may be a wall the body touches, or null if it touches none.
+	var wall: WallContact
 
 
-	func _init(p_on_floor: bool, p_floor_normal := Vector3.UP, p_headroom := true) -> void:
+	func _init(
+		p_on_floor: bool,
+		p_floor_normal := Vector3.UP,
+		p_headroom := true,
+		p_wall: WallContact = null,
+	) -> void:
 		on_floor = p_on_floor
 		floor_normal = p_floor_normal
 		headroom = p_headroom
+		wall = p_wall
+
+
+## A surface the Runner's body touches that may be a wall; RunnerMovement decides whether it is
+## near enough vertical to run.
+class WallContact:
+	## The surface's normal.
+	var normal: Vector3
+	## Tells walls apart: the same wall always has the same identity.
+	var id: int
+
+
+	func _init(p_normal: Vector3, p_id: int) -> void:
+		normal = p_normal
+		id = p_id

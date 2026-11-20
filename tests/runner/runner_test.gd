@@ -10,6 +10,12 @@ const CEILING_BOTTOM := 1.3
 const CEILING_FAR_EDGE := -4.0
 ## Slope of the long downhill ramp, degrees: steep enough for a Slide to gain speed.
 const LONG_RAMP_SLOPE := 15.0
+## The wall in the Wall-run test has its face at this x, m.
+const WALL_FACE_X := 1.5
+## Radius of the Runner's body in its scene, m.
+const RUNNER_RADIUS := 0.35
+## Height of the Runner's standing body in its scene, m.
+const RUNNER_HEIGHT := 1.8
 
 var _tuning: RunnerTuning
 
@@ -21,6 +27,7 @@ func before_test() -> void:
 func after_test() -> void:
 	Input.action_release("move_forward")
 	Input.action_release("crouch")
+	Input.action_release("jump")
 
 
 func _world_with_floor() -> Node3D:
@@ -232,8 +239,11 @@ func _world_with_ceiling(bottom: float, csg: bool) -> Node3D:
 
 
 ## A Runner on the floor at z = [param z], facing -Z, its body findable by [method _body_top].
-func _add_runner(world: Node3D, z: float) -> Runner:
+## Uses [param tuning] if given, otherwise the default tuning.
+func _add_runner(world: Node3D, z: float, tuning: RunnerTuning = null) -> Runner:
 	var runner: Runner = RunnerScene.instantiate()
+	if tuning != null:
+		runner.tuning = tuning
 	runner.position.z = z
 	runner.collision_layer = RUNNER_LAYER
 	world.add_child(runner)
@@ -365,3 +375,288 @@ func test_the_camera_is_never_above_a_ceiling_overhead() -> void:
 		if runner.position.z < CEILING_FAR_EDGE / 2.0:
 			break
 	assert_int(under_frames).is_greater(0)
+
+
+## A wide floor with a straight wall 6 m tall along -Z, its face at x = [param face_x]: to the
+## right of a Runner at x = 0 facing -Z, or to its left if negative.
+func _world_with_wall(face_x := WALL_FACE_X) -> Node3D:
+	var world: Node3D = auto_free(Node3D.new())
+	var floor_box := CSGBox3D.new()
+	floor_box.size = Vector3(80.0, 1.0, 80.0)
+	floor_box.position.y = -0.5
+	floor_box.use_collision = true
+	world.add_child(floor_box)
+	var wall := CSGBox3D.new()
+	wall.size = Vector3(1.0, 6.0, 60.0)
+	wall.position = Vector3(face_x + signf(face_x) * 0.5, 3.0, -20.0)
+	wall.use_collision = true
+	world.add_child(wall)
+	return world
+
+
+## Jumps at the wall in [param world], turned [param turn] degrees toward it (negative turns
+## right), and Wall-runs along it, holding forward. Returns the scene runner once the jump has
+## been pressed.
+func _jump_at_wall(world: Node3D, runner: Runner, turn := -20.0) -> GdUnitSceneRunner:
+	runner.rotate_y(deg_to_rad(turn))
+	var scene := scene_runner(world)
+	await scene.simulate_frames(10, 16)
+	Input.action_press("move_forward")
+	await scene.simulate_frames(10, 16)
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	return scene
+
+
+func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	# Facing 20 degrees to the right of -Z, toward the wall.
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner, -20.0)
+
+	var run_start := Vector3.INF
+	var run_end := Vector3.INF
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			if run_start == Vector3.INF:
+				run_start = runner.global_position
+			run_end = runner.global_position
+			# Running along the wall, fast, and never into or away from it.
+			assert_float(absf(runner.velocity.x)).is_less(0.01)
+			assert_float(-runner.velocity.z).is_greater_equal(_tuning.wall_run_end_speed)
+		elif run_start != Vector3.INF and runner.is_on_floor():
+			break
+
+	assert_bool(run_start == Vector3.INF).is_false()
+	# Ran several metres along the wall, touching it, before landing.
+	assert_float(run_start.z - run_end.z).is_greater(5.0)
+	assert_float(run_end.x).is_equal_approx(WALL_FACE_X - RUNNER_RADIUS, 0.05)
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_bool(runner.is_wall_running()).is_false()
+
+
+func test_a_wall_run_keeps_to_the_wall_on_frames_the_body_does_not_touch_it() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	# Running straight along the wall, the body's move mostly doesn't collide with it; the Runner
+	# finds the wall by looking for it instead.
+	var running_frames := 0
+	var untouched_frames := 0
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if not runner.is_wall_running():
+			if running_frames > 0:
+				break
+			continue
+		running_frames += 1
+		if runner.get_slide_collision_count() == 0:
+			untouched_frames += 1
+
+	assert_int(running_frames).is_greater(30)
+	assert_int(untouched_frames).is_greater(running_frames / 2)
+
+
+func test_landing_on_a_ramp_during_a_wall_run_ends_it_on_the_ramp() -> void:
+	var world := _world_with_wall()
+	# Rising 20 degrees along the wall from z = -6, under where the run comes down.
+	var slope := deg_to_rad(20.0)
+	var ramp := CSGBox3D.new()
+	ramp.size = Vector3(4.0, 1.0, 20.0)
+	ramp.rotation.x = slope
+	var surface_normal := Vector3(0.0, cos(slope), sin(slope))
+	var uphill := Vector3(0.0, sin(slope), -cos(slope))
+	var foot := Vector3(WALL_FACE_X - 2.0, 0.0, -6.0)
+	ramp.position = foot - surface_normal * ramp.size.y / 2.0 + uphill * ramp.size.z / 2.0
+	ramp.use_collision = true
+	world.add_child(ramp)
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	var ran := false
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			ran = true
+		elif ran:
+			break
+
+	assert_bool(ran).is_true()
+	assert_bool(runner.is_wall_running()).is_false()
+	# Ended as the run came down onto the ramp (about 1.6 m up it), not further up it, with the
+	# feet on it, and then runs on up it.
+	var ramp_height := (foot.z - runner.global_position.z) * tan(slope)
+	assert_float(ramp_height).is_between(0.3, 2.5)
+	assert_float(runner.global_position.y).is_equal_approx(ramp_height, 0.1)
+	await scene.simulate_frames(2, 16)
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.get_floor_normal().angle_to(surface_normal)).is_less(0.01)
+
+
+func test_bumping_a_ceiling_during_a_wall_run_does_not_end_it() -> void:
+	var world := _world_with_wall()
+	# Low enough over the middle of the run for the top of the body to hit it.
+	var ceiling := CSGBox3D.new()
+	ceiling.size = Vector3(4.0, 0.5, 17.5)
+	ceiling.position = Vector3(WALL_FACE_X - 2.0, 3.55, -11.25)
+	ceiling.use_collision = true
+	world.add_child(ceiling)
+	var highest_feet := ceiling.position.y - ceiling.size.y / 2.0 - RUNNER_HEIGHT
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	# A frame may hold more than one physics step, so the step that touches the ceiling can go
+	# unseen; the body stays up against it for several steps, so its height is what is checked.
+	var ran := false
+	var peak := -INF
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			ran = true
+			peak = maxf(peak, runner.global_position.y)
+		elif ran:
+			break
+
+	# Rose until the top of the body met the ceiling.
+	assert_float(peak).is_equal_approx(highest_feet, 0.05)
+	# The run went on until it landed: it ended with the feet on the floor.
+	assert_bool(runner.is_wall_running()).is_false()
+	assert_float(runner.global_position.y).is_equal_approx(0.0, 0.05)
+
+
+## How far the camera is rolled to the left of level, degrees (negative is to the right).
+func _camera_roll(runner: Runner) -> float:
+	var camera_right := runner.get_viewport().get_camera_3d().global_basis.x
+	return rad_to_deg(asin(clampf(camera_right.y, -1.0, 1.0)))
+
+
+## Wall-runs [param runner] along the wall in [param world], turned [param turn] degrees toward
+## it, until it lands. Returns the camera's roll on each frame of the run under "during", and on
+## each of the 60 frames after it under "after".
+func _camera_roll_through_wall_run(world: Node3D, runner: Runner, turn: float) -> Dictionary:
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner, turn)
+	var during: Array[float] = []
+	var after: Array[float] = []
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			during.append(_camera_roll(runner))
+		elif not during.is_empty():
+			after.append(_camera_roll(runner))
+			if after.size() == 60:
+				break
+	return { "during": during, "after": after }
+
+
+func test_a_wall_on_the_right_rolls_the_camera_left_easing_in_and_back_out() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var roll: Dictionary = await _camera_roll_through_wall_run(world, runner, -20.0)
+	var during: Array[float] = roll["during"]
+	var after: Array[float] = roll["after"]
+	var tilt := _tuning.wall_run_camera_tilt
+
+	# A run long enough for the tilt to settle, and a landing to ease back from.
+	assert_int(during.size()).is_greater(30)
+	assert_int(after.size()).is_equal(60)
+	# Eases in: rolls left a little on the first frame, and further on each frame after.
+	assert_float(during[0]).is_greater(0.0)
+	assert_float(during[0]).is_less(tilt * 0.5)
+	for frame: int in range(1, during.size()):
+		assert_float(during[frame]).is_greater_equal(during[frame - 1] - 0.01)
+	assert_float(during[-1]).is_equal_approx(tilt, tilt * 0.05)
+	# Eases out: still well rolled the frame after the run, then back to level.
+	assert_float(after[0]).is_greater(tilt * 0.5)
+	assert_float(after[0]).is_less(during[-1])
+	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
+
+
+func test_the_camera_rolls_back_to_level_after_a_wall_jump() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+	var tilt := _tuning.wall_run_camera_tilt
+	# Wall-run until the camera is well rolled, then Wall-jump off the wall.
+	var running_frames := 0
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			running_frames += 1
+		if running_frames == 20:
+			break
+	assert_int(running_frames).is_equal(20)
+	assert_float(_camera_roll(runner)).is_greater(tilt * 0.5)
+
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	assert_bool(runner.is_wall_running()).is_false()
+	# Eases back to level, never rolling further.
+	var roll := _camera_roll(runner)
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		assert_float(_camera_roll(runner)).is_less_equal(roll + 0.01)
+		roll = _camera_roll(runner)
+	assert_float(roll).is_equal_approx(0.0, 0.05)
+
+
+func test_a_wall_on_the_left_rolls_the_camera_right() -> void:
+	var world := _world_with_wall(-WALL_FACE_X)
+	var runner := _add_runner(world, 0.0)
+	var roll: Dictionary = await _camera_roll_through_wall_run(world, runner, 20.0)
+	var during: Array[float] = roll["during"]
+	var tilt := _tuning.wall_run_camera_tilt
+
+	assert_int(during.size()).is_greater(30)
+	for frame_roll: float in during:
+		assert_float(frame_roll).is_less(0.0)
+	assert_float(during[-1]).is_equal_approx(-tilt, tilt * 0.05)
+
+
+func test_with_the_tilt_at_zero_the_camera_never_rolls() -> void:
+	var world := _world_with_wall()
+	var no_tilt: RunnerTuning = _tuning.duplicate()
+	no_tilt.wall_run_camera_tilt = 0.0
+	var runner := _add_runner(world, 0.0, no_tilt)
+	var roll: Dictionary = await _camera_roll_through_wall_run(world, runner, -20.0)
+	var during: Array[float] = roll["during"]
+	var after: Array[float] = roll["after"]
+
+	assert_int(during.size()).is_greater(30)
+	for frame_roll: float in during + after:
+		assert_float(frame_roll).is_equal_approx(0.0, 0.001)
+
+
+## Where the camera looks: yaw (left of -Z) and pitch (up from level), degrees.
+func _camera_aim(runner: Runner) -> Vector2:
+	var forward := -runner.get_viewport().get_camera_3d().global_basis.z
+	var yaw := rad_to_deg(atan2(-forward.x, -forward.z))
+	var pitch := rad_to_deg(asin(clampf(forward.y, -1.0, 1.0)))
+	return Vector2(yaw, pitch)
+
+
+func test_mouse_look_turns_and_pitches_the_camera_during_a_wall_run() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			break
+	# Well into the run, so the camera is rolled.
+	await scene.simulate_frames(10, 16)
+	assert_bool(runner.is_wall_running()).is_true()
+	var before := _camera_aim(runner)
+
+	# Left and up, by a known amount; small enough to keep the wall on the right.
+	var relative := Vector2(-100.0, -80.0)
+	runner.look(relative)
+
+	var turned := -relative * rad_to_deg(_tuning.mouse_sensitivity)
+	assert_vector(_camera_aim(runner) - before).is_equal_approx(turned, Vector2(0.5, 0.5))
+	await scene.simulate_frames(1, 16)
+	assert_bool(runner.is_wall_running()).is_true()
+	assert_float(_camera_roll(runner)).is_greater(_tuning.wall_run_camera_tilt * 0.5)

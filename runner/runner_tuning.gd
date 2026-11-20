@@ -16,7 +16,7 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## How fast speed above Run speed fades on the ground while input is held, m/s^2.
 @export_range(0.0, 100.0, 0.1, "or_greater", "suffix:m/s²") var overspeed_decay: float = 10.0
 ## Air steering acceleration, m/s^2. Steering never raises speed above max(Run speed, current).
-@export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m/s²") var air_accel: float = 45.0
+@export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m/s²") var air_accel: float = 20.0
 ## Gravity, one value for both rising and falling, m/s^2.
 @export_range(0.0, 60.0, 0.1, "or_greater", "suffix:m/s²") var gravity: float = 20.0
 ## Height of the jump's peak above take-off, m. Launch speed is sqrt(2 * gravity * height).
@@ -63,6 +63,36 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## Fastest a Slide turns toward sideways input, rad/s.
 @export_range(0.0, 10.0, 0.05, "or_greater", "suffix:rad/s") var slide_turn_rate: float = 0.6
 
+@export_group("Wall-run")
+## Meeting a wall in the air at or above this horizontal speed can start a Wall-run, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_run_entry_speed: float = 6.0
+## A Wall-run that slows below this speed ends, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_run_end_speed: float = 4.0
+## A wall met more head-on than this, measured from parallel to it, starts no Wall-run, degrees.
+@export_range(0.0, 90.0, 1.0, "suffix:°") var wall_run_max_entry_angle: float = 60.0
+## The held direction may point away from the wall by up to this, measured from parallel to it,
+## and still start a Wall-run, degrees.
+@export_range(0.0, 90.0, 0.5, "suffix:°") var wall_run_input_angle: float = 17.5
+## A Wall-run follows a wall whose normal turns by up to this from one frame to the next (a
+## curve); a sharper turn away is an outside corner and ends the run, degrees.
+@export_range(0.0, 90.0, 0.5, "suffix:°") var wall_run_follow_angle: float = 30.0
+## A surface whose normal is within this of horizontal is a wall that can be run, degrees.
+@export_range(0.0, 45.0, 0.5, "suffix:°") var wall_max_tilt: float = 14.5
+## Gravity during a Wall-run, as a multiple of gravity.
+@export_range(0.0, 1.0, 0.01, "or_greater", "suffix:×") var wall_run_gravity_scale: float = 0.35
+## How fast a Wall-run loses speed, m/s^2.
+@export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s²") var wall_run_slowdown: float = 1.0
+## Falling speed is capped at this as a Wall-run starts; upward speed is kept, m/s.
+@export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s") var wall_run_max_entry_fall: float = 2.0
+## A Wall-jump adds this speed straight away from the wall, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_jump_push: float = 6.0
+## Highest speed jumping from wall to wall can reach; a Runner already faster keeps its speed,
+## m/s.
+@export_range(0.0, 60.0, 0.5, "or_greater", "suffix:m/s") var top_wall_run_speed: float = 24.0
+## How far beyond the body a Wall-run still finds the wall being run, m. Keeps contact with a wall
+## the body runs along without pressing into it.
+@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var wall_probe_reach: float = 0.35
+
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.
 @export_range(
@@ -77,5 +107,8 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## How quickly the camera eases between standing and low eye height, 1/s. Higher is snappier;
 ## about 3 / this is the time to get most of the way there, s.
 @export_range(0.1, 50.0, 0.1, "or_greater", "suffix:1/s") var camera_smoothing: float = 14.0
+## How far the camera rolls away from the wall during a Wall-run, easing in and out at the
+## camera smoothing rate. 0 turns the tilt off, degrees.
+@export_range(0.0, 45.0, 0.5, "suffix:°") var wall_run_camera_tilt: float = 10.0
 ## The camera stays at least this far below a ceiling directly overhead, m.
 @export_range(0.0, 0.5, 0.01, "or_greater", "suffix:m") var camera_ceiling_gap: float = 0.12
