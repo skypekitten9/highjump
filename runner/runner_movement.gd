@@ -61,7 +61,7 @@ var _locked_wall_id := 0
 ## speed, unless this was already faster.
 var _wall_jump_speed := INF
 ## Horizontal velocity a Mantle's leap holds; meaningful only in a Mantle.
-var _mantle_horizontal := Vector3.ZERO
+var _mantle_horizontal_velocity := Vector3.ZERO
 ## Height of the Mantle's top above the feet, m: followed as the leap moves, so it knows when the
 ## Runner falls back below the top. Meaningful only in a Mantle.
 var _mantle_top_above_feet := 0.0
@@ -382,7 +382,7 @@ func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
 ## into it, its top is above the feet and within Mantle reach, and at least the crouched body
 ## fits on it. No Mantle starts again until the Runner has landed since the last one began.
 func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
-	var ledge := contact.ledge
+	var ledge: LedgeContact = contact.ledge
 	if grounded or _mantle_locked or ledge == null or not is_wall(ledge.normal):
 		return false
 	if intent.move_direction.is_zero_approx():
@@ -416,10 +416,10 @@ func _start_mantle(contact: Contact, velocity: Vector3) -> Vector3:
 	var heading := (_along_wall(horizontal, normal) - normal * into).normalized()
 	if heading.is_zero_approx():
 		heading = -normal
-	_mantle_horizontal = heading * maxf(horizontal.length(), _tuning.run_speed)
+	_mantle_horizontal_velocity = heading * maxf(horizontal.length(), _tuning.run_speed)
 	var peak := contact.ledge.top_height + _tuning.mantle_clearance
 	var vertical := maxf(velocity.y, sqrt(2.0 * _leap_gravity() * peak))
-	return _mantle_horizontal + Vector3.UP * vertical
+	return _mantle_horizontal_velocity + Vector3.UP * vertical
 
 
 ## A step in a Mantle: the leap arcs on under the leap gravity, its horizontal velocity fixed and
@@ -441,7 +441,7 @@ func _step_mantle(
 		_go_airborne()
 		return _step_off_wall(intent, contact, velocity, grounded, delta)
 	var vertical := velocity.y - _leap_gravity() * delta
-	return _finish(_mantle_horizontal + Vector3.UP * vertical, false, contact)
+	return _finish(_mantle_horizontal_velocity + Vector3.UP * vertical, false, contact)
 
 
 ## Gravity during a Mantle's leap, m/s^2.

@@ -128,7 +128,7 @@ func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 func _room_above(middle: Vector3) -> float:
 	var room := INF
 	for index: int in ROOM_RAYS_AROUND + 1:
-		var from := middle
+		var from: Vector3 = middle
 		if index > 0:
 			var angle := TAU * index / ROOM_RAYS_AROUND
 			from += Vector3.FORWARD.rotated(Vector3.UP, angle) * _capsule.radius
