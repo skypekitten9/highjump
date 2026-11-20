@@ -14,6 +14,8 @@ const LONG_RAMP_SLOPE := 15.0
 const WALL_FACE_X := 1.5
 ## Radius of the Runner's body in its scene, m.
 const RUNNER_RADIUS := 0.35
+## Height of the Runner's standing body in its scene, m.
+const RUNNER_HEIGHT := 1.8
 
 var _tuning: RunnerTuning
 
@@ -451,23 +453,27 @@ func test_bumping_a_ceiling_during_a_wall_run_does_not_end_it() -> void:
 	ceiling.position = Vector3(WALL_FACE_X - 2.0, 3.55, -11.25)
 	ceiling.use_collision = true
 	world.add_child(ceiling)
+	var highest_feet := ceiling.position.y - ceiling.size.y / 2.0 - RUNNER_HEIGHT
 	var runner := _add_runner(world, 0.0)
 	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
 
+	# A frame may hold more than one physics step, so the step that touches the ceiling can go
+	# unseen; the body stays up against it for several steps, so its height is what is checked.
 	var ran := false
-	var bumped := false
+	var peak := -INF
 	for frame: int in 300:
 		await scene.simulate_frames(1, 16)
 		if runner.is_wall_running():
 			ran = true
-			for index: int in runner.get_slide_collision_count():
-				bumped = bumped or runner.get_slide_collision(index).get_normal().y < -0.9
+			peak = maxf(peak, runner.global_position.y)
 		elif ran:
 			break
 
-	assert_bool(bumped).is_true()
-	# The run went on until it landed.
-	assert_bool(runner.is_on_floor()).is_true()
+	# Rose until the top of the body met the ceiling.
+	assert_float(peak).is_equal_approx(highest_feet, 0.05)
+	# The run went on until it landed: it ended with the feet on the floor.
+	assert_bool(runner.is_wall_running()).is_false()
+	assert_float(runner.global_position.y).is_equal_approx(0.0, 0.05)
 
 
 ## How far the camera is rolled to the left of level, degrees (negative is to the right).
