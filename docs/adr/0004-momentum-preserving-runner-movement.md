@@ -10,3 +10,5 @@ Runner movement keeps any speed above run speed: in the air, input may steer it 
 ## Consequences
 
 Any mechanic that changes the Runner's velocity (Vault, rope swing, grapple) hands its velocity to the movement model, which continues from it unchanged. The prototype that informed this lives on the `prototype/runner-vault` branch.
+
+The **Slide** builds on this: it is the one ground state that can add speed, by sliding downhill (see ADR 0005).
