@@ -29,17 +29,12 @@ func _ready() -> void:
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
 	floor_snap_length = tuning.floor_snap_length
-	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
+## Turns the camera only while the mouse is captured. Never captures or frees it: whatever
+## holds the Runner (a level, later a menu) owns that.
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("release_mouse"):
-		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
-		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
-		var click := event as InputEventMouseButton
-		if click and click.pressed:
-			Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 		return
 	var motion := event as InputEventMouseMotion
 	if motion:

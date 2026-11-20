@@ -36,6 +36,23 @@ func _world_with_floor() -> Node3D:
 	return world
 
 
+func test_moving_the_free_mouse_does_not_turn_the_camera() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var world := _world_with_floor()
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(1, 16)
+	var facing := runner.get_viewport().get_camera_3d().global_basis
+
+	var motion := InputEventMouseMotion.new()
+	motion.relative = Vector2(200.0, 150.0)
+	Input.parse_input_event(motion)
+	await scene.simulate_frames(2, 16)
+
+	var camera := runner.get_viewport().get_camera_3d().global_basis
+	assert_bool(camera.is_equal_approx(facing)).is_true()
+
+
 func test_runner_placed_above_the_floor_falls_and_lands() -> void:
 	var world := _world_with_floor()
 	var runner: Runner = RunnerScene.instantiate()
