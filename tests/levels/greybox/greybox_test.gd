@@ -92,6 +92,10 @@ func test_every_playtest_area_has_a_visible_label() -> void:
 			"Round tower",
 			"Sharp corner",
 			"Inside corner",
+			"Height ladder",
+			"Mantle room checks",
+			"Wall-run walls",
+			"Speed lane",
 		]
 	)
 
@@ -298,3 +302,165 @@ func test_a_wall_run_carries_on_around_the_inside_corner() -> void:
 	assert_bool(runner.is_wall_running()).is_true()
 	assert_float(_heading(runner).dot(along_next)).is_greater(0.999)
 	assert_float(_horizontal_speed(runner)).is_greater(speed_before - 0.2)
+
+
+## Flies [param runner] on as the Player holds, until it lands. Returns whether it Mantled on the
+## way.
+func _fly_until_landed(scene: GdUnitSceneRunner, runner: Runner) -> bool:
+	var mantled := false
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		mantled = mantled or runner.is_mantling()
+		if runner.is_on_floor() and not runner.is_mantling():
+			break
+	return mantled
+
+
+## Jumps [param runner] at the ledge ahead from [param start], holding forward, once it is within
+## [param jump_distance] of [param face] (a marker on the ledge's face, facing the way the Runner
+## runs), until it lands. Returns whether it Mantled on the way.
+func _jump_at_ledge(
+	scene: GdUnitSceneRunner,
+	runner: Runner,
+	start: Node3D,
+	face: Node3D,
+	jump_distance: float,
+) -> bool:
+	runner.global_transform = start.global_transform
+	runner.velocity = Vector3.ZERO
+	await scene.simulate_frames(10, 16)
+	Input.action_press("move_forward")
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		if face.to_local(runner.global_position).x > -jump_distance:
+			break
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	var mantled: bool = await _fly_until_landed(scene, runner)
+	Input.action_release("move_forward")
+	await scene.simulate_frames(5, 16)
+	return mantled
+
+
+func test_the_runner_mantles_up_the_height_ladder_until_a_ledge_is_out_of_reach() -> void:
+	var level := _greybox()
+	var ladder := "PlaytestCourse/Mantle/HeightLadder/"
+	var scene := _run_with_runner_at(level, ladder + "Ledge05/Start")
+	var runner := _runner_of(level)
+	# Every ledge up to jump height plus Mantle reach is Mantled onto; the last is beyond it.
+	var reachable := {
+		"Ledge05": 0.5,
+		"Ledge10": 1.0,
+		"Ledge15": 1.5,
+		"Ledge20": 2.0,
+		"Ledge25": 2.5,
+	}
+	var out_of_reach := "Ledge32"
+	assert_float(_tuning.jump_height + _tuning.mantle_reach).is_less(3.2)
+
+	for ledge: String in reachable:
+		var area := level.get_node(ladder + ledge) as Node3D
+		var start := area.get_node("Start") as Node3D
+		var face := area.get_node("Face") as Node3D
+		var mantled: bool = await _jump_at_ledge(scene, runner, start, face, 1.0)
+		assert_bool(mantled).override_failure_message("%s not Mantled" % ledge).is_true()
+		assert_bool(runner.is_on_floor()).is_true()
+		var top: float = reachable[ledge]
+		assert_float(runner.global_position.y).is_equal_approx(top, 0.05)
+		assert_float(face.to_local(runner.global_position).x).is_greater(0.0)
+
+	var high := level.get_node(ladder + out_of_reach) as Node3D
+	var high_face := high.get_node("Face") as Node3D
+	var reached: bool = await _jump_at_ledge(
+		scene,
+		runner,
+		high.get_node("Start") as Node3D,
+		high_face,
+		1.0,
+	)
+	assert_bool(reached).is_false()
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.global_position.y).is_equal_approx(0.0, 0.05)
+	assert_float(high_face.to_local(runner.global_position).x).is_less(0.0)
+
+
+func test_a_wall_run_along_a_wall_run_wall_steers_in_and_lands_on_its_top() -> void:
+	var level := _greybox()
+	var lane := "PlaytestCourse/Mantle/WallRunWalls/Wall30"
+	var scene := _run_with_runner_at(level, lane + "/Start")
+	var runner := _runner_of(level)
+	var area := level.get_node(lane) as Node3D
+	var wall := level.get_node(lane + "/Box") as CSGBox3D
+	var top := wall.size.y
+	var face := wall.position.z - wall.size.z / 2.0
+	await scene.simulate_frames(10, 16)
+
+	# Run at the wall, on the right, and jump just before meeting it.
+	Input.action_press("move_forward")
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		if face - area.to_local(runner.global_position).z < 0.6:
+			break
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	# Wall-run up the wall until its top is well within Mantle reach, then steer into it.
+	var steered := false
+	var speed_along := 0.0
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		var below_top := top - area.to_local(runner.global_position).y
+		if runner.is_wall_running() and below_top < _tuning.mantle_reach - 0.2:
+			speed_along = runner.velocity.x
+			Input.action_press("move_right")
+			steered = true
+			break
+	assert_bool(steered).is_true()
+
+	var mantled: bool = await _fly_until_landed(scene, runner)
+	Input.action_release("move_right")
+	Input.action_release("move_forward")
+
+	assert_bool(mantled).is_true()
+	assert_bool(runner.is_on_floor()).is_true()
+	var landed := area.to_local(runner.global_position)
+	assert_float(landed.y).is_equal_approx(top, 0.05)
+	assert_float(landed.z).is_greater(face)
+	# Still heading on along the wall, fast.
+	assert_float(runner.velocity.x).is_greater(speed_along * 0.5)
+
+
+func test_a_slide_down_the_speed_lane_mantles_onto_the_ledge_keeping_its_speed() -> void:
+	var level := _greybox()
+	var lane := "PlaytestCourse/Mantle/SpeedLane"
+	var scene := _run_with_runner_at(level, lane + "/SlideStart")
+	var runner := _runner_of(level)
+	var face := level.get_node(lane + "/Face") as Node3D
+	var ledge := level.get_node(lane + "/Ledge") as CSGBox3D
+	await scene.simulate_frames(10, 16)
+
+	# Run at the crest, crouch into a Slide and hold it down the slope, then jump at the ledge.
+	Input.action_press("move_forward")
+	await scene.simulate_frames(5, 16)
+	Input.action_press("crouch")
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if face.to_local(runner.global_position).x > -2.5:
+			break
+	var speed_in := _horizontal_speed(runner)
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	var mantled: bool = await _fly_until_landed(scene, runner)
+
+	# Faster than running, from the slope.
+	assert_float(speed_in).is_greater(_tuning.run_speed + 2.0)
+	assert_bool(mantled).is_true()
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.global_position.y).is_equal_approx(ledge.size.y, 0.05)
+	assert_float(face.to_local(runner.global_position).x).is_greater(0.0)
+	assert_float(_horizontal_speed(runner)).is_greater(speed_in - 0.5)
