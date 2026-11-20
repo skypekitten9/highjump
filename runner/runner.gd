@@ -2,10 +2,18 @@ class_name Runner
 extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
-## Reports whether there is headroom to stand and which wall the body touches, sizes the body as
-## RunnerMovement says, and eases the camera's height after it and its roll during a Wall-run.
+## Reports whether there is headroom to stand, which wall the body touches and the ledge ahead,
+## sizes the body as RunnerMovement says, and eases the camera's height after it and its roll
+## during a Wall-run.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
+## How far beyond the body the ledge probe looks for a ledge's face, m.
+const LEDGE_PROBE_AHEAD := 0.3
+## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
+## under the Runner for a top, m.
+const LEDGE_MIN_TOP := 0.05
+## Spacing of the ledge probe's rays up a face, from just above the feet to Mantle reach, m.
+const LEDGE_PROBE_SPACING := 0.2
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
@@ -23,11 +31,11 @@ var _body_low := false
 
 
 func _ready() -> void:
-	_movement = RunnerMovement.new(tuning)
 	# Own copy, so resizing it never touches the scene's shared sub-resource.
 	_capsule = (_body.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
 	_body.shape = _capsule
 	_standing_height = _capsule.height
+	_movement = RunnerMovement.new(tuning, _standing_height)
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
 	floor_snap_length = tuning.floor_snap_length
@@ -59,6 +67,7 @@ func _physics_process(delta: float) -> void:
 		floor_normal,
 		_has_headroom(),
 		_touched_wall(),
+		null if on_floor else find_ledge(wish),
 	)
 	velocity = _movement.step(intent, contact, velocity, delta)
 	_set_body_low(_movement.is_low())
@@ -73,6 +82,33 @@ func _physics_process(delta: float) -> void:
 ## True if the Runner is in a Wall-run.
 func is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
+
+
+## The ledge ahead in [param direction]: a face near enough vertical to be a wall, just ahead
+## of the body, whose top is above the feet and within Mantle reach. Null if there is none, or
+## no direction. Looks onto the top a body radius inside the edge, and measures the room above
+## it with a ray (a shape overlap query misses CSG and trimesh ceilings).
+func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
+	var heading := Vector3(direction.x, 0.0, direction.z)
+	if heading.is_zero_approx():
+		return null
+	var face := _ledge_face(heading.normalized())
+	if face.is_empty():
+		return null
+	var normal: Vector3 = face["normal"]
+	var face_point: Vector3 = face["position"]
+	var inside := face_point - Vector3(normal.x, 0.0, normal.z).normalized() * _capsule.radius
+	var feet := global_position.y
+	var top_hit := _cast(
+		Vector3(inside.x, feet + tuning.mantle_reach, inside.z),
+		Vector3(inside.x, feet + LEDGE_MIN_TOP, inside.z),
+	)
+	if top_hit.is_empty() or (top_hit["normal"] as Vector3).y < cos(floor_max_angle):
+		return null
+	var top: Vector3 = top_hit["position"]
+	var above := _cast(top, top + Vector3.UP * _standing_height)
+	var clear := INF if above.is_empty() else (above["position"] as Vector3).y - top.y
+	return RunnerMovement.LedgeContact.new(normal, top.y - feet, clear)
 
 
 ## Turns the body and pitches the head by [param relative] pixels of mouse movement. Leaves the
@@ -111,6 +147,28 @@ func _touched_wall() -> RunnerMovement.WallContact:
 	var normal: Vector3 = hit["normal"]
 	var id: int = hit["collider_id"]
 	return RunnerMovement.WallContact.new(normal, id)
+
+
+## The lowest hit of rays cast along [param heading] from the body's axis, from just above the
+## feet up to Mantle reach, on a face near enough vertical to be a wall; empty if none.
+func _ledge_face(heading: Vector3) -> Dictionary:
+	var height := LEDGE_PROBE_SPACING / 2.0
+	while height <= tuning.mantle_reach:
+		var from := global_position + Vector3.UP * height
+		var hit := _cast(from, from + heading * (_capsule.radius + LEDGE_PROBE_AHEAD))
+		if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
+			return hit
+		height += LEDGE_PROBE_SPACING
+	return { }
+
+
+## The first thing a ray from [param from] to [param to] hits, other than the Runner; empty if
+## none.
+func _cast(from: Vector3, to: Vector3) -> Dictionary:
+	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
+	# Starting inside a box out of reach, the ray must not find the box's underside.
+	ray.hit_back_faces = false
+	return get_world_3d().direct_space_state.intersect_ray(ray)
 
 
 ## Shrinks or grows the body from the top, so the feet stay put.

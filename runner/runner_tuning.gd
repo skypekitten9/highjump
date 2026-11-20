@@ -6,6 +6,8 @@ extends Resource
 
 ## The shortest Slide boost cooldown allowed, s.
 const MIN_SLIDE_BOOST_COOLDOWN := 0.01
+## The lowest Mantle leap gravity scale allowed, as a multiple of gravity.
+const MIN_MANTLE_LEAP_GRAVITY_SCALE := 0.1
 
 ## The fastest the Runner moves from the Player's input alone, m/s.
 @export_range(0.1, 30.0, 0.1, "or_greater", "suffix:m/s") var run_speed: float = 9.0
@@ -92,6 +94,34 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## How far beyond the body a Wall-run still finds the wall being run, m. Keeps contact with a wall
 ## the body runs along without pressing into it.
 @export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var wall_probe_reach: float = 0.35
+
+@export_group("Mantle")
+## Mantle reach: how far above the Runner's feet a ledge's top can be and still be Mantled, m.
+## Never negative.
+@export_range(0.0, 5.0, 0.05, "or_greater", "suffix:m") var mantle_reach: float = 1.6:
+	set(value):
+		mantle_reach = maxf(value, 0.0)
+## A Mantle's leap is lifted just enough for its arc to peak this far above the top, m. Never
+## negative.
+@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var mantle_clearance: float = 0.25:
+	set(value):
+		mantle_clearance = maxf(value, 0.0)
+## Gravity during a Mantle's leap, as a multiple of gravity. Higher is a quicker, snappier leap.
+## Never below [constant MIN_MANTLE_LEAP_GRAVITY_SCALE], however it is set, so the leap always
+## comes down.
+@export_range(0.1, 5.0, 0.05, "or_greater", "suffix:×") var mantle_leap_gravity_scale: float = 2.0:
+	set(value):
+		mantle_leap_gravity_scale = maxf(value, MIN_MANTLE_LEAP_GRAVITY_SCALE)
+## The least speed into the wall a Mantle carries over the top, so it reaches the top even with
+## no speed into the wall, m/s. Never negative.
+@export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s") var mantle_inward_speed: float = 3.0:
+	set(value):
+		mantle_inward_speed = maxf(value, 0.0)
+## The held direction may point up to this far from straight into a ledge's face and still
+## Mantle, degrees. Kept within 0 to 90.
+@export_range(0.0, 90.0, 0.5, "suffix:°") var mantle_input_angle: float = 60.0:
+	set(value):
+		mantle_input_angle = clampf(value, 0.0, 90.0)
 
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.

@@ -2,6 +2,8 @@ extends GdUnitTestSuite
 ## Every RunnerTuning feel value is shown in the Inspector with a unit and a valid range, and the
 ## default tuning preset sits inside those ranges.
 
+const DEFAULT_TUNING := preload("res://runner/default_runner_tuning.tres")
+
 
 ## The tuning's exported feel values: script variables shown in the Inspector.
 func _feel_values(tuning: RunnerTuning) -> Array[Dictionary]:
@@ -33,7 +35,7 @@ func test_every_feel_value_has_a_range_with_a_unit() -> void:
 
 
 func test_default_preset_sits_inside_every_range() -> void:
-	var tuning: RunnerTuning = load("res://runner/default_runner_tuning.tres")
+	var tuning: RunnerTuning = DEFAULT_TUNING
 	for property: Dictionary in _feel_values(tuning):
 		var value_name: String = property["name"]
 		var hint_string: String = property["hint_string"]
@@ -60,3 +62,34 @@ func test_slide_boost_cooldown_set_outside_the_inspector_never_reaches_zero() ->
 	assert_float(tuning.slide_boost_cooldown).is_greater(0.0)
 	tuning.slide_boost_cooldown = -1.0
 	assert_float(tuning.slide_boost_cooldown).is_greater(0.0)
+
+
+func test_default_mantle_values() -> void:
+	var tuning: RunnerTuning = DEFAULT_TUNING
+	assert_float(tuning.mantle_reach).is_equal(1.6)
+	assert_float(tuning.mantle_clearance).is_equal(0.25)
+	assert_float(tuning.mantle_leap_gravity_scale).is_equal(2.0)
+	assert_float(tuning.mantle_inward_speed).is_equal(3.0)
+	assert_float(tuning.mantle_input_angle).is_equal(60.0)
+
+
+func test_mantle_leap_gravity_set_outside_the_inspector_never_reaches_zero() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.mantle_leap_gravity_scale = 0.0
+	assert_float(tuning.mantle_leap_gravity_scale).is_greater(0.0)
+	tuning.mantle_leap_gravity_scale = -1.0
+	assert_float(tuning.mantle_leap_gravity_scale).is_greater(0.0)
+
+
+func test_mantle_values_set_outside_the_inspector_stay_in_bounds() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.mantle_reach = -1.0
+	tuning.mantle_clearance = -1.0
+	tuning.mantle_inward_speed = -1.0
+	tuning.mantle_input_angle = -10.0
+	assert_float(tuning.mantle_reach).is_equal(0.0)
+	assert_float(tuning.mantle_clearance).is_equal(0.0)
+	assert_float(tuning.mantle_inward_speed).is_equal(0.0)
+	assert_float(tuning.mantle_input_angle).is_equal(0.0)
+	tuning.mantle_input_angle = 120.0
+	assert_float(tuning.mantle_input_angle).is_equal(90.0)

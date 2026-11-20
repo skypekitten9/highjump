@@ -12,6 +12,8 @@ const CEILING_FAR_EDGE := -4.0
 const LONG_RAMP_SLOPE := 15.0
 ## The wall in the Wall-run test has its face at this x, m.
 const WALL_FACE_X := 1.5
+## The box in the Mantle tests has its face at this z, ahead of a Runner at the origin, m.
+const BOX_FACE_Z := -0.6
 ## Radius of the Runner's body in its scene, m.
 const RUNNER_RADIUS := 0.35
 ## Height of the Runner's standing body in its scene, m.
@@ -660,3 +662,61 @@ func test_mouse_look_turns_and_pitches_the_camera_during_a_wall_run() -> void:
 	await scene.simulate_frames(1, 16)
 	assert_bool(runner.is_wall_running()).is_true()
 	assert_float(_camera_roll(runner)).is_greater(_tuning.wall_run_camera_tilt * 0.5)
+
+
+## A wide floor with a box ahead of a Runner at the origin facing -Z: its face at z =
+## [param face_z], its top [param top] above the floor.
+func _world_with_box(top: float, face_z := BOX_FACE_Z) -> Node3D:
+	var world := _world_with_floor()
+	var box := CSGBox3D.new()
+	box.size = Vector3(4.0, top, 4.0)
+	box.position = Vector3(0.0, top / 2.0, face_z - 2.0)
+	box.use_collision = true
+	world.add_child(box)
+	return world
+
+
+func test_the_ledge_probe_finds_a_box_within_mantle_reach() -> void:
+	var world := _world_with_box(1.0)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	assert_vector(ledge.normal).is_equal_approx(Vector3.BACK, Vector3.ONE * 0.01)
+	assert_float(ledge.top_height).is_equal_approx(1.0, 0.02)
+	assert_float(ledge.clear_height).is_greater_equal(RUNNER_HEIGHT)
+
+
+func test_the_ledge_probe_finds_nothing_beyond_mantle_reach() -> void:
+	var world := _world_with_box(_tuning.mantle_reach + 0.2)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+func test_jumping_into_a_box_too_high_to_jump_onto_mantles_onto_it() -> void:
+	# Higher than the jump alone reaches, within it plus Mantle reach.
+	var top := _tuning.jump_height + 0.8
+	var world := _world_with_box(top)
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		# Wholly on top, or back on the floor in front of the box.
+		var on_top := runner.position.z < BOX_FACE_Z - RUNNER_RADIUS
+		if runner.is_on_floor() and (on_top or runner.position.y < 0.1):
+			break
+	Input.action_release("move_forward")
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
