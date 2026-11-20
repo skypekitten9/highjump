@@ -27,8 +27,8 @@ var _jump_buffer_timer := 0.0
 ## Normal of the floor the Runner stayed on last frame; zero if it was airborne or jumped.
 var _last_floor_normal := Vector3.ZERO
 ## Time since this stepper was created, s. Measures the Slide boost cooldown.
-var _time := 0.0
-## [member _time] when the last Slide began; far in the past if none has.
+var _elapsed := 0.0
+## [member _elapsed] when the last Slide began; far in the past if none has.
 var _last_slide_start := -INF
 
 
@@ -49,7 +49,7 @@ func step(
 	tuning: RunnerTuning,
 	delta: float,
 ) -> Vector3:
-	_time += delta
+	_elapsed += delta
 	var grounded := _is_grounded(velocity, on_floor, floor_normal)
 	_update_jump_timers(jump_pressed, grounded, tuning, delta)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
@@ -151,37 +151,47 @@ func _update_ground_state(
 ) -> Vector3:
 	match _state:
 		State.RUN:
-			if crouch_held and horizontal.length() >= tuning.slide_entry_speed:
+			if _wants_slide(horizontal, crouch_held, tuning):
 				return _start_slide(horizontal, tuning)
-			if crouch_held or not can_stand:
+			if _must_stay_low(crouch_held, can_stand):
 				_state = State.CROUCH
 		State.SLIDE:
 			# Releasing crouch lets the Slide wind down; pressing it again continues the same
 			# Slide, with no new boost.
 			_slide_released = not crouch_held
-		State.AIR when crouch_held and horizontal.length() >= tuning.slide_entry_speed:
+		State.AIR when _wants_slide(horizontal, crouch_held, tuning):
 			# A slide-hop: land straight into a Slide, keeping all speed.
 			return _start_slide(horizontal, tuning)
 		_:
 			# Crouch, or landing: crouch while crouch is held, and stand back up to Run only
 			# once crouch is released and there is room.
-			_state = State.CROUCH if crouch_held or not can_stand else State.RUN
+			_state = State.CROUCH if _must_stay_low(crouch_held, can_stand) else State.RUN
 	return horizontal
+
+
+## True if crouch is held fast enough to begin a Slide.
+func _wants_slide(horizontal: Vector3, crouch_held: bool, tuning: RunnerTuning) -> bool:
+	return crouch_held and horizontal.length() >= tuning.slide_entry_speed
+
+
+## True if the body has to be low: crouch is held, or there is no room to stand.
+func _must_stay_low(crouch_held: bool, can_stand: bool) -> bool:
+	return crouch_held or not can_stand
 
 
 ## Starts a Slide with a boost scaled by how long ago the last Slide began: none just after it,
 ## full once the cooldown has passed.
 func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
-	var since_last := _time - _last_slide_start
-	var share := clampf(since_last / maxf(tuning.slide_boost_cooldown, 0.001), 0.0, 1.0)
+	var since_last := _elapsed - _last_slide_start
+	var boost_fraction := clampf(since_last / maxf(tuning.slide_boost_cooldown, 0.001), 0.0, 1.0)
 	_state = State.SLIDE
 	_slide_released = false
-	_last_slide_start = _time
+	_last_slide_start = _elapsed
 	var speed := horizontal.length()
 	# Capped, so landing into Slides again and again can't stack boosts; only slopes take a
 	# Slide faster. A Slide already past the cap is never slowed.
 	var cap := minf(tuning.run_speed + tuning.slide_boost, tuning.top_slide_speed)
-	var boosted := maxf(speed, minf(speed + tuning.slide_boost * share, cap))
+	var boosted := maxf(speed, minf(speed + tuning.slide_boost * boost_fraction, cap))
 	return horizontal.normalized() * boosted
 
 
