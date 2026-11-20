@@ -2,10 +2,13 @@ class_name Runner
 extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
-## Reports whether there is headroom to stand, sizes the body as RunnerMovement says, and eases
-## the camera's height after it.
+## Reports whether there is headroom to stand and which wall the body touches, sizes the body as
+## RunnerMovement says, and eases the camera's height after it.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
+## How far beyond the body the probe toward the wall being run still finds it, m. Keeps contact
+## with a wall the body runs along without pressing into it.
+const WALL_PROBE_REACH := 0.35
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
@@ -55,6 +58,7 @@ func _physics_process(delta: float) -> void:
 		Input.is_action_pressed("crouch"),
 	)
 	var contact := RunnerMovement.Contact.new(on_floor, floor_normal, _has_headroom())
+	_report_wall(contact)
 	velocity = _movement.step(intent, contact, velocity, delta)
 	_set_body_low(_movement.is_low())
 	move_and_slide()
@@ -63,6 +67,38 @@ func _physics_process(delta: float) -> void:
 	if _movement.is_on_ground():
 		apply_floor_snap()
 	_ease_camera(delta)
+
+
+## True if the Runner is in a Wall-run.
+func is_wall_running() -> bool:
+	return _movement.state() == RunnerMovement.State.WALL_RUN
+
+
+## Fills in the wall the body touches: the most nearly vertical surface the last move collided
+## with, or else, during a Wall-run, the wall found by a short probe toward the wall being run.
+func _report_wall(contact: RunnerMovement.Contact) -> void:
+	var steepest: KinematicCollision3D = null
+	for index: int in get_slide_collision_count():
+		var collision := get_slide_collision(index)
+		if steepest == null or absf(collision.get_normal().y) < absf(steepest.get_normal().y):
+			steepest = collision
+	if steepest != null:
+		contact.on_wall = true
+		contact.wall_normal = steepest.get_normal()
+		contact.wall_id = steepest.get_collider_id()
+		return
+	var wall_normal := _movement.wall_normal()
+	if wall_normal.is_zero_approx():
+		return
+	var from := global_position + Vector3.UP * (_capsule.height / 2.0)
+	var to := from - wall_normal * (_capsule.radius + WALL_PROBE_REACH)
+	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
+	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
+	if hit.is_empty():
+		return
+	contact.on_wall = true
+	contact.wall_normal = hit["normal"]
+	contact.wall_id = hit["collider_id"]
 
 
 ## Shrinks or grows the body from the top, so the feet stay put.

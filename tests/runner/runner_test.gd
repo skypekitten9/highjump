@@ -10,6 +10,10 @@ const CEILING_BOTTOM := 1.3
 const CEILING_FAR_EDGE := -4.0
 ## Slope of the long downhill ramp, degrees: steep enough for a Slide to gain speed.
 const LONG_RAMP_SLOPE := 15.0
+## The wall in the Wall-run test has its face at this x, m.
+const WALL_FACE_X := 1.5
+## Radius of the Runner's body in its scene, m.
+const RUNNER_RADIUS := 0.35
 
 var _tuning: RunnerTuning
 
@@ -21,6 +25,7 @@ func before_test() -> void:
 func after_test() -> void:
 	Input.action_release("move_forward")
 	Input.action_release("crouch")
+	Input.action_release("jump")
 
 
 func _world_with_floor() -> Node3D:
@@ -365,3 +370,55 @@ func test_the_camera_is_never_above_a_ceiling_overhead() -> void:
 		if runner.position.z < CEILING_FAR_EDGE / 2.0:
 			break
 	assert_int(under_frames).is_greater(0)
+
+
+## A wide floor with a straight wall 6 m tall along -Z, its face 1.5 m to the right of x = 0.
+func _world_with_wall() -> Node3D:
+	var world: Node3D = auto_free(Node3D.new())
+	var floor_box := CSGBox3D.new()
+	floor_box.size = Vector3(80.0, 1.0, 80.0)
+	floor_box.position.y = -0.5
+	floor_box.use_collision = true
+	world.add_child(floor_box)
+	var wall := CSGBox3D.new()
+	wall.size = Vector3(1.0, 6.0, 60.0)
+	wall.position = Vector3(WALL_FACE_X + 0.5, 3.0, -20.0)
+	wall.use_collision = true
+	world.add_child(wall)
+	return world
+
+
+func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	# Facing 20 degrees to the right of -Z, toward the wall.
+	runner.rotate_y(deg_to_rad(-20.0))
+	var scene := scene_runner(world)
+	await scene.simulate_frames(10, 16)
+
+	Input.action_press("move_forward")
+	await scene.simulate_frames(10, 16)
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	var run_start := Vector3.INF
+	var run_end := Vector3.INF
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			if run_start == Vector3.INF:
+				run_start = runner.global_position
+			run_end = runner.global_position
+			# Running along the wall, fast, and never into or away from it.
+			assert_float(absf(runner.velocity.x)).is_less(0.01)
+			assert_float(-runner.velocity.z).is_greater_equal(_tuning.wall_run_end_speed)
+		elif run_start != Vector3.INF and runner.is_on_floor():
+			break
+
+	assert_bool(run_start == Vector3.INF).is_false()
+	# Ran several metres along the wall, touching it, before landing.
+	assert_float(run_start.z - run_end.z).is_greater(5.0)
+	assert_float(run_end.x).is_equal_approx(WALL_FACE_X - RUNNER_RADIUS, 0.05)
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_bool(runner.is_wall_running()).is_false()
