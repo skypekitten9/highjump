@@ -549,3 +549,91 @@ func test_starting_a_slide_from_a_crouch_takes_releasing_crouch_and_pressing_it_
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
 	velocity = _crouch_step(velocity, FORWARD, true)
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+
+
+## A floor sloping down toward -Z (the Slide's heading) by [param degrees]; negative slopes up.
+func _downhill(degrees: float) -> Vector3:
+	return Vector3.UP.rotated(Vector3.RIGHT, -deg_to_rad(degrees))
+
+
+## A step on a floor with [param normal], crouch held or not, no move input.
+func _slope_step(velocity: Vector3, normal: Vector3, crouch_held: bool) -> Vector3:
+	return _movement.step(
+		Vector3.ZERO,
+		false,
+		crouch_held,
+		true,
+		velocity,
+		true,
+		normal,
+		_tuning,
+		DELTA,
+	)
+
+
+func test_default_slope_gain_is_1_point_3() -> void:
+	assert_float(_tuning.slope_gain).is_equal_approx(1.3, 0.0001)
+
+
+func test_a_held_slide_down_a_steep_slope_gains_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 60:
+		velocity = _slope_step(velocity, _downhill(30.0), true)
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	# Well past what slide friction alone would leave, and past where it started.
+	assert_float(_horizontal_speed(velocity)).is_greater(start + 5.0)
+
+
+func test_a_held_slide_down_a_slope_too_gentle_to_beat_slide_friction_loses_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 60:
+		velocity = _slope_step(velocity, _downhill(1.0), true)
+	assert_float(_horizontal_speed(velocity)).is_less(start)
+	# But less than on flat ground.
+	assert_float(_horizontal_speed(velocity)).is_greater(start - _tuning.slide_friction)
+
+
+func test_a_held_slide_up_a_slope_loses_speed_faster_than_on_flat_ground() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 30:
+		velocity = _slope_step(velocity, _downhill(-15.0), true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	# Half a second of slide friction would leave it 0.75 m/s slower; the slope takes far more.
+	assert_float(_horizontal_speed(velocity)).is_less(start - _tuning.slide_friction * 0.5 - 1.0)
+
+
+func test_a_held_slide_down_a_long_steep_slope_tops_out_at_the_top_slide_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost)
+	for frame: int in 600:
+		velocity = _slope_step(velocity, _downhill(30.0), true)
+		assert_float(_horizontal_speed(velocity)).is_less_equal(_tuning.top_slide_speed + 0.001)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_tuning.top_slide_speed, 0.1)
+
+
+func test_a_slide_entered_faster_than_the_top_slide_speed_keeps_its_speed_downhill() -> void:
+	var velocity := _start_slide(_tuning.top_slide_speed + OVERSPEED)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 60:
+		velocity = _slope_step(velocity, _downhill(30.0), true)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(start, 0.01)
+
+
+func test_a_released_slide_down_a_steep_slope_never_gains_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	for frame: int in 60:
+		var before := _horizontal_speed(velocity)
+		velocity = _slope_step(velocity, _downhill(30.0), false)
+		assert_bool(_movement.is_slide_released()).is_true()
+		assert_float(_horizontal_speed(velocity)).is_less(before)
+
+
+func test_running_down_a_steep_slope_keeps_run_speed_and_gains_nothing() -> void:
+	var velocity := FORWARD * _run_speed()
+	for frame: int in 120:
+		velocity = _ground_step(velocity, FORWARD, _downhill(30.0))
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+		assert_float(_horizontal_speed(velocity)).is_less_equal(_run_speed() + 0.001)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_run_speed(), 0.001)

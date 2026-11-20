@@ -58,7 +58,7 @@ func step(
 		horizontal = _update_ground_state(horizontal, crouch_held, can_stand, tuning)
 		match _state:
 			State.SLIDE:
-				horizontal = _slide_horizontal(horizontal, wish, tuning, delta)
+				horizontal = _slide_horizontal(horizontal, wish, floor_normal, tuning, delta)
 				_end_slide_if_slow(horizontal.length(), can_stand, tuning)
 			State.CROUCH:
 				horizontal = _ground_horizontal(
@@ -185,20 +185,41 @@ func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
 ## A Slide glides on its momentum: slide friction above Run speed, and slow-slide friction below
 ## it so a slow Slide dies quickly; once released, it winds down at the released-slide
 ## deceleration instead. Input only steers it, and only its sideways part: holding a
-## direction never adds or removes speed.
+## direction never adds or removes speed. Slopes add speed downhill and remove it uphill, but
+## never take it past the top slide speed; a Slide already faster than that keeps its speed
+## (see docs/adr/0004).
 func _slide_horizontal(
 	horizontal: Vector3,
 	wish: Vector3,
+	floor_normal: Vector3,
 	tuning: RunnerTuning,
 	delta: float,
 ) -> Vector3:
+	var speed_before := horizontal.length()
 	horizontal = _steer_slide(horizontal, wish, tuning, delta)
+	horizontal = _slope_slide(horizontal, floor_normal, tuning, delta)
+	if _slide_released:
+		# Holding crouch is the deliberate choice to keep gaining; released, slopes only slow it.
+		horizontal = horizontal.limit_length(speed_before)
 	var friction := tuning.slide_friction
 	if _slide_released:
 		friction = tuning.released_slide_decel
-	elif horizontal.length() < tuning.run_speed:
+	elif speed_before < tuning.run_speed:
 		friction = tuning.slow_slide_friction
-	return horizontal.move_toward(Vector3.ZERO, friction * delta)
+	horizontal = horizontal.move_toward(Vector3.ZERO, friction * delta)
+	return horizontal.limit_length(maxf(speed_before, tuning.top_slide_speed))
+
+
+## Adds the horizontal part of gravity along the floor, times the slope gain: speed downhill,
+## less speed uphill.
+func _slope_slide(
+	horizontal: Vector3,
+	floor_normal: Vector3,
+	tuning: RunnerTuning,
+	delta: float,
+) -> Vector3:
+	var downhill := Vector3(floor_normal.x, 0.0, floor_normal.z) * floor_normal.y
+	return horizontal + downhill * tuning.gravity * tuning.slope_gain * delta
 
 
 ## Turns toward the sideways part of [param wish] at up to the slide turn rate, scaled by how
