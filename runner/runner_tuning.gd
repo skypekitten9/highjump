@@ -47,7 +47,7 @@ extends Resource
 ## Highest speed a Slide can gain; a faster entry keeps its speed, m/s.
 @export var top_slide_speed: float = 24.0
 ## How fast a Slide above Run speed loses speed, m/s^2.
-@export var slide_friction: float = 1.5
+@export var slide_friction: float = 4.0
 ## How fast a Slide below Run speed loses speed while crouch is held, m/s^2.
 @export var slow_slide_friction: float = 14.0
 ## How fast a Slide loses speed after crouch is released, m/s^2.
