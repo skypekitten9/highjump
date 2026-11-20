@@ -286,6 +286,17 @@ func test_a_wall_jump_keeps_the_speed_along_the_wall_adds_the_push_and_launches_
 	assert_float(velocity.y).is_equal_approx(_launch_speed(), 0.0001)
 
 
+func test_holding_forward_after_a_wall_jump_does_not_cancel_its_push() -> void:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	velocity = _movement.step(_jumping(), _on_wall(), velocity, DELTA)
+	# A quarter of a second: about the time the push takes to carry the body across the
+	# greybox's 2 m gap to the opposite wall.
+	for frame: int in roundi(0.25 / DELTA):
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	# Steering turns some of the push forward, but more than half of it is left.
+	assert_float(velocity.dot(WALL_NORMAL)).is_greater(_tuning.wall_jump_push * 0.5)
+
+
 func test_a_jump_pressed_just_before_meeting_a_wall_does_not_wall_jump_as_the_run_starts() -> void:
 	var approach := _toward_wall(FAST, GLANCING)
 	approach = _movement.step(_jumping(), _in_air(), approach, DELTA)
