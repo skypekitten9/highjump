@@ -16,11 +16,12 @@ var _movement := RunnerMovement.new()
 
 func _ready() -> void:
 	_camera.fov = tuning.fov
+	floor_snap_length = tuning.floor_snap_length
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("ui_cancel"):
+	if event.is_action_pressed("release_mouse"):
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		return
 	if Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
@@ -42,6 +43,10 @@ func _physics_process(delta: float) -> void:
 	var jump_pressed := Input.is_action_just_pressed("jump")
 	velocity = _movement.step(wish, jump_pressed, velocity, on_floor, floor_normal, tuning, delta)
 	move_and_slide()
+	# The engine never snaps while velocity points up, which would lift the Runner off the
+	# floor every other frame up a ramp and launch it over the crest.
+	if _movement.is_on_ground():
+		apply_floor_snap()
 
 
 func _look(relative: Vector2) -> void:

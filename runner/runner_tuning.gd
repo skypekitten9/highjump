@@ -21,6 +21,9 @@ extends Resource
 @export var coyote_time: float = 0.1
 ## A jump pressed this long before landing fires on landing, s.
 @export var jump_buffer_time: float = 0.1
+## How far below the Runner the floor still holds it down, m. Keeps it on the ground over a
+## ramp's crest and down slopes and steps instead of briefly leaving it.
+@export var floor_snap_length: float = 0.25
 
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.

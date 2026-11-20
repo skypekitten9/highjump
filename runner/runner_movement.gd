@@ -13,6 +13,8 @@ const MIN_FLOOR_NORMAL_Y := 0.1
 var _coyote_timer := 0.0
 ## Time left in which a jump press is still waiting to fire, s.
 var _jump_buffer_timer := 0.0
+## Normal of the floor the Runner stayed on last frame; zero if it was airborne or jumped.
+var _last_floor_normal := Vector3.ZERO
 
 
 ## Returns the Runner's velocity for this physics frame.
@@ -35,15 +37,24 @@ func step(
 	if grounded:
 		horizontal = _ground_horizontal(horizontal, wish, tuning, delta)
 		# Keep velocity in the floor plane (v . n = 0) without changing horizontal speed.
-		var n := floor_normal
-		vertical = -(horizontal.x * n.x + horizontal.z * n.z) / n.y
+		vertical = (
+			-(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
+		)
 	else:
 		horizontal = _air_horizontal(horizontal, wish, tuning, delta)
 		vertical = velocity.y - tuning.gravity * delta
 	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
 		vertical = maxf(vertical, sqrt(2.0 * tuning.gravity * tuning.jump_height))
 		clear_jump_timers()
+		grounded = false
+	_last_floor_normal = floor_normal if grounded else Vector3.ZERO
 	return Vector3(horizontal.x, vertical, horizontal.z)
+
+
+## True if the last step kept the Runner on the floor (it neither was airborne nor jumped),
+## so the body should be held down onto the floor even while climbing a slope.
+func is_on_ground() -> bool:
+	return not _last_floor_normal.is_zero_approx()
 
 
 ## Forgets any waiting jump press and any coyote time. For mechanics that hand control back
@@ -69,10 +80,13 @@ func _update_jump_timers(
 
 
 ## On the floor and not already leaving it, so the take-off frame isn't snapped back down.
+## Leaving is measured against the floor the Runner stood on last frame, if any: running up a
+## ramp onto flat ground still climbs at the ramp's angle, but it is not leaving the floor.
 func _is_grounded(velocity: Vector3, on_floor: bool, floor_normal: Vector3) -> bool:
+	var leaving_plane := floor_normal if _last_floor_normal.is_zero_approx() else _last_floor_normal
 	return (
 		on_floor and floor_normal.y > MIN_FLOOR_NORMAL_Y
-		and velocity.dot(floor_normal) <= LEAVE_FLOOR_SPEED
+		and velocity.dot(leaving_plane) <= LEAVE_FLOOR_SPEED
 	)
 
 
