@@ -77,6 +77,9 @@ class GodotBinaryResolutionTest(unittest.TestCase):
             check.resolve_godot_bin({}, f'GODOT_BIN="{self.STEAM_PATH}"\n'), self.STEAM_PATH
         )
 
+    def test_empty_env_file_value_falls_back_to_godot_on_path(self):
+        self.assertEqual(check.resolve_godot_bin({}, "GODOT_BIN=\n"), "godot")
+
     def test_commented_out_entry_is_ignored(self):
         self.assertEqual(check.resolve_godot_bin({}, "# GODOT_BIN=/old/godot\n"), "godot")
 

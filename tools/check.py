@@ -3,7 +3,7 @@
 Usage:
     python tools/check.py           check everything (what CI runs)
     python tools/check.py --fix     format GDScript in place, then check everything
-    python tools/check.py --staged  format and lint staged GDScript (the git hook)
+    python tools/check.py --staged  check format and lint of staged GDScript (the git hook)
 """
 
 from __future__ import annotations
@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import os
 import platform
+import shutil
 import subprocess
 import sys
 import urllib.request
@@ -99,7 +100,7 @@ def resolve_godot_bin(environ: Mapping[str, str], env_file: str | None) -> str:
             value = value.strip()
             if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
                 value = value[1:-1]
-            return value
+            return value or "godot"
     return "godot"
 
 
@@ -256,20 +257,38 @@ def remind_about_hook() -> None:
 
 
 def check_staged() -> None:
-    """Format staged GDScript, lint it, and stop the commit if formatting changed anything."""
+    """Check formatting and lint of the *staged* content of GDScript files (the git hook).
+
+    The staged blobs are copied into .tools/staged/ (inside the repo, so .editorconfig
+    still applies) and checked there. Working-tree files are never touched, so partially
+    staged files are checked exactly as they will be committed.
+    """
     name_status = run(["git", "diff", "--cached", "--name-status"], capture=True).stdout
     files = staged_gdscript_files(name_status)
     if not files:
         return
-    before = {f: (REPO / f).read_bytes() for f in files}
-    format_files(files, fix=True)
-    changed = [f for f in files if (REPO / f).read_bytes() != before[f]]
-    lint_files(files)
-    if changed:
-        raise CheckFailed(
-            "Reformatted staged files. Review and re-stage them, then commit again:\n  "
-            + "\n  ".join(changed)
-        )
+    staging_dir = TOOLS_DIR / "staged"
+    shutil.rmtree(staging_dir, ignore_errors=True)
+    try:
+        copies: list[str] = []
+        for f in files:
+            blob = subprocess.run(
+                ["git", "show", f":{f}"], cwd=REPO, capture_output=True, check=True
+            ).stdout
+            copy = staging_dir / f
+            copy.parent.mkdir(parents=True, exist_ok=True)
+            copy.write_bytes(blob)
+            copies.append(copy.relative_to(REPO).as_posix())
+        try:
+            format_files(copies, fix=False)
+        except CheckFailed:
+            raise CheckFailed(
+                "Staged files need formatting. Run `python tools/check.py --fix`, "
+                "re-stage, and commit again."
+            ) from None
+        lint_files(copies)
+    finally:
+        shutil.rmtree(staging_dir, ignore_errors=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,7 +297,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--fix", action="store_true", help="format GDScript in place first")
     parser.add_argument(
-        "--staged", action="store_true", help="only format and lint staged files (git hook)"
+        "--staged", action="store_true", help="only check staged GDScript, as it will be committed (git hook)"
     )
     args = parser.parse_args(argv)
 
