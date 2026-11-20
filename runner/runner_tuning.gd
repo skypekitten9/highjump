@@ -4,6 +4,9 @@ extends Resource
 ## Defaults are the play-tested "Momentum (tight)" values (see docs/adr/0004), with the Slide
 ## and Crouch from the "Long glide" preset and Run speed raised to suit them (see docs/adr/0005).
 
+## The shortest Slide boost cooldown allowed, s.
+const MIN_SLIDE_BOOST_COOLDOWN := 0.01
+
 ## The fastest the Runner moves from the Player's input alone, m/s.
 @export_range(0.1, 30.0, 0.1, "or_greater", "suffix:m/s") var run_speed: float = 9.0
 ## Ground acceleration toward the input direction, m/s^2.
@@ -39,8 +42,11 @@ extends Resource
 ## Runner past Run speed + this (or the top slide speed), and never slows it.
 @export_range(0.0, 10.0, 0.1, "or_greater", "suffix:m/s") var slide_boost: float = 2.0
 ## Time after a Slide begins until the next Slide boost is full again; it grows linearly to full
-## over this time, s.
-@export_range(0.01, 5.0, 0.01, "or_greater", "suffix:s") var slide_boost_cooldown: float = 1.5
+## over this time, s. Never below [constant MIN_SLIDE_BOOST_COOLDOWN], however it is set, since
+## RunnerMovement divides by it.
+@export_range(0.01, 5.0, 0.01, "or_greater", "suffix:s") var slide_boost_cooldown: float = 1.5:
+	set(value):
+		slide_boost_cooldown = maxf(value, MIN_SLIDE_BOOST_COOLDOWN)
 ## Scales gravity along the floor in a Slide, as a multiple: speed gained downhill with crouch
 ## held, and lost uphill (see docs/adr/0005).
 @export_range(0.0, 3.0, 0.05, "or_greater", "suffix:×") var slope_gain: float = 1.3

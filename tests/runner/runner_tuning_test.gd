@@ -49,5 +49,14 @@ func test_slide_boost_cooldown_cannot_be_zero() -> void:
 	for property: Dictionary in _feel_values(RunnerTuning.new()):
 		if property["name"] == "slide_boost_cooldown":
 			assert_float(_range_minimum(property)).is_greater(0.0)
+			assert_float(_range_minimum(property)).is_equal(RunnerTuning.MIN_SLIDE_BOOST_COOLDOWN)
 			return
 	fail("slide_boost_cooldown is not a feel value")
+
+
+func test_slide_boost_cooldown_set_outside_the_inspector_never_reaches_zero() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.slide_boost_cooldown = 0.0
+	assert_float(tuning.slide_boost_cooldown).is_greater(0.0)
+	tuning.slide_boost_cooldown = -1.0
+	assert_float(tuning.slide_boost_cooldown).is_greater(0.0)
