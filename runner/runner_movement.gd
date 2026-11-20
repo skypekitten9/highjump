@@ -82,12 +82,12 @@ func _update_jump_timers(
 ## On the floor and not already leaving it, so the take-off frame isn't snapped back down.
 ## Leaving is measured against the floor the Runner stood on last frame, if any: running up a
 ## ramp onto flat ground still climbs at the ramp's angle, but it is not leaving the floor.
+## Only velocity pointing up can leave: the engine's movement step zeroes vertical velocity
+## going down a slope, which would otherwise read as moving away from the floor.
 func _is_grounded(velocity: Vector3, on_floor: bool, floor_normal: Vector3) -> bool:
 	var leaving_plane := floor_normal if _last_floor_normal.is_zero_approx() else _last_floor_normal
-	return (
-		on_floor and floor_normal.y > MIN_FLOOR_NORMAL_Y
-		and velocity.dot(leaving_plane) <= LEAVE_FLOOR_SPEED
-	)
+	var leaving := velocity.y > 0.0 and velocity.dot(leaving_plane) > LEAVE_FLOOR_SPEED
+	return on_floor and floor_normal.y > MIN_FLOOR_NORMAL_Y and not leaving
 
 
 func _ground_horizontal(

@@ -82,3 +82,29 @@ func test_running_up_a_45_degree_ramp_onto_its_flat_top_stays_on_the_ground() ->
 	# On the 2 m top, with no launch over the crest.
 	assert_float(highest).is_less(2.05)
 	assert_bool(runner.is_on_floor()).is_true()
+
+
+## Letting go of the move input stops the Runner quickly only on the ground; in the air it keeps
+## its speed. So stopping partway down the ramp shows it was on the ground there.
+func test_letting_go_partway_down_a_45_degree_ramp_stops_the_runner_on_the_ramp() -> void:
+	var world := _world_with_45_degree_ramp()
+	var runner: Runner = RunnerScene.instantiate()
+	# On the flat top, facing -Z, so running back runs down the ramp toward +Z.
+	runner.position = Vector3(0.0, 2.0, -4.0)
+	world.add_child(runner)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(10, 16)
+
+	Input.action_press("move_back")
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		if runner.position.z > -1.6:
+			break
+	Input.action_release("move_back")
+	await scene.simulate_frames(30, 16)
+
+	# Stopped on the ramp, short of its foot at z = 0.
+	assert_float(runner.position.z).is_less(-0.5)
+	assert_float(runner.position.y).is_greater(0.5)
+	assert_float(runner.velocity.length()).is_equal_approx(0.0, 0.01)
+	assert_bool(runner.is_on_floor()).is_true()
