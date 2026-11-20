@@ -6,10 +6,10 @@ A first-person movement game built with Godot 4.7 (GDScript only). Domain langua
 
 - **Feedback loop:** `python tools/check.py` runs the Godot version check, format check, lint and the full test suite. `--fix` formats files in place. Run it before declaring work done.
 - **Godot binary:** copy `.env.example` to `.env` and set `GODOT_BIN` to the Godot editor executable. A real `GODOT_BIN` environment variable overrides `.env`; with neither, `godot` on `PATH` is used.
-- **Git hook:** run `git config core.hooksPath .githooks` once per clone to check formatting and lint of staged GDScript on commit.
+- **Git hooks:** run `git config core.hooksPath .githooks` once per clone. `pre-commit` checks formatting and lint of staged GDScript; `pre-push` blocks direct pushes to `main`.
 - **Layout:** files are grouped by feature (`res://player/`, `res://movement/...`), each scene beside its script. Tests live in `res://tests/`, mirroring the feature folders.
 - **Standards:** follow `CODING_STANDARDS.md`.
-- **Branches:** `main` is protected; work on a branch and open a PR. CI must pass.
+- **Branches:** never push to `main` directly. Work on a branch, open a PR, and merge only when CI passes. GitHub can't enforce this on the current plan, so `.githooks/pre-push` blocks direct pushes to `main` locally.
 
 ## Agent skills
 
