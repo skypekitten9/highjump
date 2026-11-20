@@ -25,7 +25,7 @@ The **Runner** gliding low along the ground on its momentum, entered by crouchin
 _Avoid_: Power slide, crouch-slide
 
 **Slide boost**:
-The burst of speed the **Runner** gets when a **Slide** begins, weakened if another Slide began shortly before.
+The burst of speed the **Runner** gets when a **Slide** begins, weakened if another Slide began shortly before. It never carries the Runner beyond a set speed above **Run speed**, so only slopes take a Slide faster.
 _Avoid_: Slide burst, dash
 
 **Vault**:
