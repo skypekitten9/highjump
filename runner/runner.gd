@@ -1,15 +1,16 @@
 class_name Runner
 extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
-## everything velocity-related is decided by RunnerMovement once per physics frame. Owns the
-## body's height (low in a Slide or a Crouch) and the camera's height that follows it.
+## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
+## Reports whether there is headroom to stand, sizes the body as RunnerMovement says, and eases
+## the camera's height after it.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
 
-var _movement := RunnerMovement.new()
+var _movement: RunnerMovement
 var _capsule: CapsuleShape3D
 var _standing_height := 0.0
 ## How far the eyes sit below the top of the body, standing or low, m.
@@ -22,6 +23,7 @@ var _body_low := false
 
 
 func _ready() -> void:
+	_movement = RunnerMovement.new(tuning)
 	# Own copy, so resizing it never touches the scene's shared sub-resource.
 	_capsule = (_body.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
 	_body.shape = _capsule
@@ -47,22 +49,14 @@ func _physics_process(delta: float) -> void:
 	wish.y = 0.0
 	var on_floor := is_on_floor()
 	var floor_normal := get_floor_normal() if on_floor else Vector3.UP
-	var jump_pressed := Input.is_action_just_pressed("jump")
-	var crouch_held := Input.is_action_pressed("crouch")
-	var can_stand := not _body_low or _has_headroom()
-	velocity = _movement.step(
+	var intent := RunnerMovement.Intent.new(
 		wish,
-		jump_pressed,
-		crouch_held,
-		can_stand,
-		velocity,
-		on_floor,
-		floor_normal,
-		tuning,
-		delta,
+		Input.is_action_just_pressed("jump"),
+		Input.is_action_pressed("crouch"),
 	)
-	# Never stand up into a ceiling, even in the air.
-	_set_body_low(_movement.is_low() or not can_stand)
+	var contact := RunnerMovement.Contact.new(on_floor, floor_normal, _has_headroom())
+	velocity = _movement.step(intent, contact, velocity, delta)
+	_set_body_low(_movement.is_low())
 	move_and_slide()
 	# The engine never snaps while velocity points up, which would lift the Runner off the
 	# floor every other frame up a ramp and launch it over the crest.
@@ -78,9 +72,12 @@ func _set_body_low(low: bool) -> void:
 	_body.position.y = _capsule.height / 2.0
 
 
-## True if the low body could move straight up by the height standing adds. Uses the body's
-## own movement collision: a shape overlap query misses CSG and trimesh ceilings.
+## True if there is room for the standing body here: a standing body already fills it, and a
+## low one could move straight up by the height standing adds. Uses the body's own movement
+## collision: a shape overlap query misses CSG and trimesh ceilings.
 func _has_headroom() -> bool:
+	if not _body_low:
+		return true
 	return not test_move(global_transform, Vector3.UP * (_standing_height - tuning.crouch_height))
 
 
