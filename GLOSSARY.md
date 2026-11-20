@@ -51,3 +51,19 @@ _Avoid_: High jump, pole jump
 **Pole**:
 The long, flexible pole the **Runner** carries and plants to perform a **Vault**.
 _Avoid_: Stick, staff
+
+**Wall-run**:
+The **Runner** running along a near-vertical wall while in the air, on its momentum. It begins on its own when the Runner meets a wall at or above the **Wall-run entry speed**, at a glancing enough angle, while the **Player** holds a direction into or along it. All the Runner's speed turns to run along the wall, and it gains none; the Wall-run arcs up and back down. It ends when the Player jumps, the wall runs out, the Runner reaches the floor, or it slows too much. The Runner can't Wall-run the same wall again until it lands or Wall-runs a different one.
+_Avoid_: Wall ride, wall slide
+
+**Wall-jump**:
+A jump off the wall during a **Wall-run**, pushing the **Runner** away from the wall and upward while keeping its speed along the wall. Wall-running another wall turns that push into speed along it too, so jumping from wall to wall gains speed, up to the **Top wall-run speed**.
+_Avoid_: Wall kick, wall bounce
+
+**Wall-run entry speed**:
+The speed at or above which meeting a wall in the air begins a **Wall-run**.
+_Avoid_: Wall-run threshold, minimum wall speed
+
+**Top wall-run speed**:
+The fastest jumping from wall to wall can take the **Runner**; a Runner already faster keeps its speed.
+_Avoid_: Max wall speed, wall-run cap
