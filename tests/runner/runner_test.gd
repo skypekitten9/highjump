@@ -888,6 +888,7 @@ func _camera_dip_through_mantle(
 
 
 ## Largest change from one pitch to the next in [param pitches], starting from [param start].
+## A frame may hold two physics steps, so an eased change can be up to two steps' worth.
 func _largest_step(start: float, pitches: Array[float]) -> float:
 	var largest := 0.0
 	var previous := start
@@ -911,7 +912,7 @@ func test_the_camera_dips_during_a_mantle_and_eases_back_to_the_mouse_pitch() ->
 	# Dips most of the way to the full dip, never past it, and eases back to the mouse pitch.
 	assert_float(during.min()).is_less(-full * 0.5)
 	assert_float(during.min()).is_greater_equal(-full - 0.01)
-	assert_float(_largest_step(0.0, during + after)).is_less(full * 0.3)
+	assert_float(_largest_step(0.0, during + after)).is_less(full * 0.5)
 	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
 
 
@@ -929,7 +930,7 @@ func test_a_mantle_that_ends_early_eases_the_camera_back_to_level_without_a_jump
 
 	assert_int(after.size()).is_equal(60)
 	assert_float(during[-1]).is_less(-full * 0.5)
-	assert_float(_largest_step(during[-1], after)).is_less(full * 0.3)
+	assert_float(_largest_step(during[-1], after)).is_less(full * 0.5)
 	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
 
 
