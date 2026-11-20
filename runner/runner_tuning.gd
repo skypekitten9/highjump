@@ -89,6 +89,9 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## Highest speed jumping from wall to wall can reach; a Runner already faster keeps its speed,
 ## m/s.
 @export_range(0.0, 60.0, 0.5, "or_greater", "suffix:m/s") var top_wall_run_speed: float = 24.0
+## How far beyond the body a Wall-run still finds the wall being run, m. Keeps contact with a wall
+## the body runs along without pressing into it.
+@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var wall_probe_reach: float = 0.35
 
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.

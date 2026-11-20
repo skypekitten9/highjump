@@ -6,9 +6,6 @@ extends CharacterBody3D
 ## RunnerMovement says, and eases the camera's height after it and its roll during a Wall-run.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
-## How far beyond the body the probe toward the wall being run still finds it, m. Keeps contact
-## with a wall the body runs along without pressing into it.
-const WALL_PROBE_REACH := 0.35
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
@@ -105,7 +102,7 @@ func _report_wall(contact: RunnerMovement.Contact) -> void:
 	if wall_normal.is_zero_approx():
 		return
 	var from := global_position + Vector3.UP * (_capsule.height / 2.0)
-	var to := from - wall_normal * (_capsule.radius + WALL_PROBE_REACH)
+	var to := from - wall_normal * (_capsule.radius + tuning.wall_probe_reach)
 	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
 	if hit.is_empty():
