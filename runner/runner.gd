@@ -2,7 +2,7 @@ class_name Runner
 extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## everything velocity-related is decided by RunnerMovement once per physics frame. Owns the
-## body's height (low in a Crouch) and the camera's height that follows it.
+## body's height (low in a Slide or a Crouch) and the camera's height that follows it.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
 ## The camera stays at least this far below a ceiling directly overhead, m.

@@ -464,3 +464,88 @@ func test_forward_and_back_input_do_nothing_to_a_slide() -> void:
 		_movement = RunnerMovement.new()
 		var velocity := _slide_for_a_second(wish)
 		assert_vector(velocity).is_equal_approx(straight, Vector3.ONE * 0.001)
+
+
+func test_a_released_slide_winds_down_low_then_becomes_a_run_at_run_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 30:
+		velocity = _crouch_step(velocity, FORWARD, false)
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+		assert_bool(_movement.is_slide_released()).is_true()
+		assert_bool(_movement.is_low()).is_true()
+	var expected := start - _tuning.released_slide_decel * 0.5
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(expected, 0.01)
+	var frames := 0
+	while _movement.state() == RunnerMovement.State.SLIDE and frames < 600:
+		velocity = _crouch_step(velocity, FORWARD, false)
+		frames += 1
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	assert_bool(_movement.is_low()).is_false()
+	var last_frame := _tuning.released_slide_decel * DELTA
+	assert_float(_horizontal_speed(velocity)).is_between(_run_speed() - last_frame, _run_speed())
+
+
+func test_pressing_crouch_again_in_a_released_slide_continues_it_with_no_boost() -> void:
+	# Fast enough to stay above Run speed throughout.
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED * 2.0)
+	# Released for longer than the boost cooldown, so a new Slide would get the full boost.
+	for frame: int in _frames_past(_tuning.slide_boost_cooldown):
+		velocity = _crouch_step(velocity, FORWARD, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	var released := _horizontal_speed(velocity)
+	for frame: int in 60:
+		velocity = _crouch_step(velocity, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	assert_bool(_movement.is_slide_released()).is_false()
+	# Back to slide friction, with no boost on top.
+	var expected := released - _tuning.slide_friction
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(expected, 0.01)
+
+
+func test_a_released_slide_without_room_to_stand_stays_low_until_there_is_room() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost)
+	for frame: int in 300:
+		velocity = _crouch_step(velocity, FORWARD, false, false)
+		assert_bool(_movement.is_low()).is_true()
+	assert_float(_horizontal_speed(velocity)).is_less(_run_speed())
+	_crouch_step(velocity, FORWARD, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	assert_bool(_movement.is_low()).is_false()
+
+
+func test_jumping_from_a_slide_keeps_its_horizontal_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var sliding := _horizontal_speed(velocity)
+	velocity = _movement.step(FORWARD, true, true, true, velocity, true, Vector3.UP, _tuning, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	assert_float(velocity.y).is_equal_approx(_launch_speed(), 0.001)
+	for frame: int in 30:
+		velocity = _air_step(velocity, FORWARD)
+	# At most the jump frame's slide friction lost.
+	var tolerance := _tuning.slide_friction * DELTA + 0.001
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(sliding, tolerance)
+
+
+func test_sliding_off_an_edge_keeps_horizontal_speed() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var sliding := _horizontal_speed(velocity)
+	for frame: int in 30:
+		velocity = _air_step(velocity, FORWARD)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(sliding, 0.001)
+
+
+func test_starting_a_slide_from_a_crouch_takes_releasing_crouch_and_pressing_it_again() -> void:
+	# Landing fast with no room to stand gives a Crouch above slide entry speed.
+	var velocity := FORWARD * (_run_speed() + OVERSPEED)
+	_air_step(velocity)
+	velocity = _crouch_step(velocity, FORWARD, false, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+	velocity = _crouch_step(velocity, FORWARD, true)
+	assert_float(_horizontal_speed(velocity)).is_greater(_tuning.slide_entry_speed)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+	velocity = _crouch_step(velocity, FORWARD, false)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	velocity = _crouch_step(velocity, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)

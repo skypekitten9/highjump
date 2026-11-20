@@ -18,6 +18,8 @@ const LEAVE_FLOOR_SPEED := 0.5
 const MIN_FLOOR_NORMAL_Y := 0.1
 
 var _state := State.RUN
+## True while a Slide carries on after crouch was released, winding down toward a Run.
+var _slide_released := false
 ## Time left in which a jump still fires after leaving the floor, s.
 var _coyote_timer := 0.0
 ## Time left in which a jump press is still waiting to fire, s.
@@ -57,7 +59,7 @@ func step(
 		match _state:
 			State.SLIDE:
 				horizontal = _slide_horizontal(horizontal, wish, tuning, delta)
-				_end_slide_if_slow(horizontal.length(), tuning)
+				_end_slide_if_slow(horizontal.length(), can_stand, tuning)
 			State.CROUCH:
 				horizontal = _ground_horizontal(
 					horizontal,
@@ -73,14 +75,14 @@ func step(
 			-(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
 		)
 	else:
-		_state = State.AIR
+		_go_airborne()
 		horizontal = _air_horizontal(horizontal, wish, tuning, delta)
 		vertical = velocity.y - tuning.gravity * delta
 	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
 		vertical = maxf(vertical, sqrt(2.0 * tuning.gravity * tuning.jump_height))
 		clear_jump_timers()
 		grounded = false
-		_state = State.AIR
+		_go_airborne()
 	_last_floor_normal = floor_normal if grounded else Vector3.ZERO
 	return Vector3(horizontal.x, vertical, horizontal.z)
 
@@ -94,6 +96,11 @@ func is_on_ground() -> bool:
 ## What the Runner was doing in the last step.
 func state() -> State:
 	return _state
+
+
+## True if the last step was a Slide that carries on after crouch was released.
+func is_slide_released() -> bool:
+	return _state == State.SLIDE and _slide_released
 
 
 ## True if the body should be low after the last step.
@@ -149,7 +156,9 @@ func _update_ground_state(
 			if crouch_held or not can_stand:
 				_state = State.CROUCH
 		State.SLIDE:
-			pass
+			# Releasing crouch lets the Slide wind down; pressing it again continues the same
+			# Slide, with no new boost.
+			_slide_released = not crouch_held
 		_:
 			# Crouch, or landing: crouch while crouch is held, and stand back up to Run only
 			# once crouch is released and there is room.
@@ -163,6 +172,7 @@ func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
 	var since_last := _time - _last_slide_start
 	var share := clampf(since_last / maxf(tuning.slide_boost_cooldown, 0.001), 0.0, 1.0)
 	_state = State.SLIDE
+	_slide_released = false
 	_last_slide_start = _time
 	var speed := horizontal.length()
 	# Capped, so landing into Slides again and again can't stack boosts; only slopes take a
@@ -173,7 +183,8 @@ func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
 
 
 ## A Slide glides on its momentum: slide friction above Run speed, and slow-slide friction below
-## it so a slow Slide dies quickly. Input only steers it, and only its sideways part: holding a
+## it so a slow Slide dies quickly; once released, it winds down at the released-slide
+## deceleration instead. Input only steers it, and only its sideways part: holding a
 ## direction never adds or removes speed.
 func _slide_horizontal(
 	horizontal: Vector3,
@@ -183,7 +194,9 @@ func _slide_horizontal(
 ) -> Vector3:
 	horizontal = _steer_slide(horizontal, wish, tuning, delta)
 	var friction := tuning.slide_friction
-	if horizontal.length() < tuning.run_speed:
+	if _slide_released:
+		friction = tuning.released_slide_decel
+	elif horizontal.length() < tuning.run_speed:
 		friction = tuning.slow_slide_friction
 	return horizontal.move_toward(Vector3.ZERO, friction * delta)
 
@@ -204,9 +217,18 @@ func _steer_slide(
 	return horizontal.rotated(Vector3.UP, sideways * tuning.slide_turn_rate * delta)
 
 
-func _end_slide_if_slow(speed: float, tuning: RunnerTuning) -> void:
+## A Slide too slow to go on becomes a Crouch. A released Slide down to Run speed becomes a Run
+## once there is room to stand.
+func _end_slide_if_slow(speed: float, can_stand: bool, tuning: RunnerTuning) -> void:
 	if speed < tuning.slide_to_crouch_speed:
 		_state = State.CROUCH
+	elif _slide_released and speed <= tuning.run_speed and can_stand:
+		_state = State.RUN
+
+
+func _go_airborne() -> void:
+	_state = State.AIR
+	_slide_released = false
 
 
 func _ground_horizontal(
