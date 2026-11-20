@@ -85,6 +85,10 @@ func test_running_along_the_course_adds_to_the_distance() -> void:
 	var scene := scene_runner(course)
 
 	await scene.simulate_frames(120, 16)
+	# The Course notes the Distance before the Runner moves in a frame, so hold the Runner still
+	# for one more frame to let the Distance catch up.
+	_runner_of(course).process_mode = Node.PROCESS_MODE_DISABLED
+	await scene.simulate_frames(1, 16)
 
 	assert_int(course.distance()).is_equal(floori(course.runner_along() - RUNNER_START))
 	assert_int(course.distance()).is_greater(5)
