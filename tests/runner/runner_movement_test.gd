@@ -637,3 +637,20 @@ func test_running_down_a_steep_slope_keeps_run_speed_and_gains_nothing() -> void
 		assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
 		assert_float(_horizontal_speed(velocity)).is_less_equal(_run_speed() + 0.001)
 	assert_float(_horizontal_speed(velocity)).is_equal_approx(_run_speed(), 0.001)
+
+
+## Lands on flat ground at [param speed] with crouch held, after a moment in the air.
+func _land_crouching(speed: float) -> Vector3:
+	var velocity := FORWARD * speed + Vector3.DOWN * 5.0
+	_air_step(velocity, FORWARD)
+	return _crouch_step(velocity, FORWARD, true)
+
+
+func test_landing_crouched_at_slide_entry_speed_or_faster_slides_losing_no_speed() -> void:
+	for speed: float in [_tuning.slide_entry_speed, _run_speed() + _tuning.slide_boost + OVERSPEED]:
+		_movement = RunnerMovement.new()
+		var velocity := _land_crouching(speed)
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+		# At most one frame of slide friction (the faster of the two tiers) after landing.
+		var floor_speed := speed - _tuning.slow_slide_friction * DELTA - 0.001
+		assert_float(_horizontal_speed(velocity)).is_greater_equal(floor_speed)
