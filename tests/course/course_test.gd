@@ -209,3 +209,23 @@ func test_the_same_seed_lays_the_same_course() -> void:
 	var second_picked := await _picked_while_moving_to(second, 500.0)
 
 	assert_array(second_picked).is_equal(first_picked)
+
+
+func test_harder_sections_unlock_by_the_distance_from_where_the_runner_starts() -> void:
+	var course := _course()
+	course.runner_start = 25.0
+	var list := SectionList.new()
+	# Once both are unlocked, the no-repeat rule makes them take turns.
+	list.sections = [_flat_section(10.0, 1), _flat_section(10.0, 2)]
+	course.section_list = list
+
+	var picked := await _picked_while_moving_to(course, 300.0)
+
+	var first_hard := INF
+	for entry: Array in picked:
+		var difficulty: int = entry[2]
+		if difficulty == 2:
+			first_hard = minf(first_hard, entry[0] as float)
+	# Sections start every 10 m from the 30 m start Section's end: the first difficulty 2 one at
+	# the first start at least 150 m of Distance on, 175 m along the Course.
+	assert_float(first_hard).is_equal_approx(180.0, 0.01)

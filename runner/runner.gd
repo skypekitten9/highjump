@@ -72,7 +72,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _physics_process(delta: float) -> void:
 	# Back does nothing (docs/adr/0008).
-	var forward := 1.0 if holds_forward else Input.get_action_strength("move_forward")
+	var forward: float = 1.0 if holds_forward else Input.get_action_strength("move_forward")
 	var move := Vector2(Input.get_axis("move_left", "move_right"), -forward).limit_length(1.0)
 	var wish := global_basis * Vector3(move.x, 0.0, move.y)
 	wish.y = 0.0

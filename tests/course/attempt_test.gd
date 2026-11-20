@@ -11,12 +11,16 @@ const SAVE_PATH := "user://attempt_test.save"
 const FALL_DEPTH := 10.0
 ## Comfortably more than a Stall takes to be seen once the Runner is held still: physics frames.
 const STALL_FRAMES := 90
+## The start Section's length, m: the first picked Section starts this far along the Course.
+const START_LENGTH := 30.0
 
 
 func after_test() -> void:
 	DirAccess.remove_absolute(SAVE_PATH)
 	Input.action_release("jump")
 	Input.action_release("crouch")
+	Input.action_release("move_left")
+	Input.action_release("move_right")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -197,3 +201,105 @@ func test_sliding_along_the_course_never_stalls() -> void:
 	await scene.simulate_frames(240, 16)
 
 	assert_bool(course.is_attempt_over()).is_false()
+
+
+## A Player input: once the Runner is [param along] m along the Course, [param action] is pressed,
+## or released if not [param press]. A jump is tapped: pressed for one frame.
+class Step:
+	var along: float
+	var action: StringName
+	var press: bool
+
+
+	func _init(at: float, what: StringName, down := true) -> void:
+		along = at
+		action = what
+		press = down
+
+
+## A Course that lays only the Section at [param path] after its start Section, whatever its
+## difficulty.
+func _course_of(path: String) -> Course:
+	var course := _course()
+	course.difficulty_2_unlock = 0.0
+	course.difficulty_3_unlock = 0.0
+	var list := SectionList.new()
+	list.sections = [load(path) as PackedScene]
+	course.section_list = list
+	return course
+
+
+## What the Runner did in a run by [method _run_with].
+class Seen:
+	var wall_ran := false
+	var mantled := false
+
+
+## Runs [param course]'s Runner until it is [param to] m along the Course or the Attempt ends,
+## pressing [param steps] in order, and returns what the Runner did on the way.
+func _run_with(course: Course, steps: Array[Step], to: float) -> Seen:
+	var scene := scene_runner(course)
+	var runner := _runner_of(course)
+	var pending := steps.duplicate()
+	var seen := Seen.new()
+	for _frame: int in 900:
+		var along := course.runner_along()
+		if along >= to or course.is_attempt_over():
+			break
+		Input.action_release(&"jump")
+		while not pending.is_empty() and along >= (pending[0] as Step).along:
+			var step: Step = pending.pop_front()
+			if step.press:
+				Input.action_press(step.action)
+			else:
+				Input.action_release(step.action)
+		await scene.simulate_frames(1, 16)
+		seen.wall_ran = seen.wall_ran or runner.is_wall_running()
+		seen.mantled = seen.mantled or runner.is_mantling()
+	return seen
+
+
+func test_wall_running_along_the_course_never_stalls() -> void:
+	var course := _course_of("res://course/sections/wall_run_gap.tscn")
+	var steps: Array[Step] = [
+		Step.new(START_LENGTH + 5.0, &"move_left"),
+		Step.new(START_LENGTH + 8.5, &"jump"),
+		Step.new(START_LENGTH + 20.0, &"move_left", false),
+	]
+
+	var seen := await _run_with(course, steps, START_LENGTH + 30.0)
+
+	assert_bool(seen.wall_ran).is_true()
+	assert_bool(course.is_attempt_over()).is_false()
+	assert_float(course.runner_along()).is_greater_equal(START_LENGTH + 30.0)
+
+
+func test_mantling_onto_a_block_never_stalls() -> void:
+	var course := _course_of("res://course/sections/block.tscn")
+	var steps: Array[Step] = [Step.new(START_LENGTH + 6.5, &"jump")]
+
+	var seen := await _run_with(course, steps, START_LENGTH + 26.0)
+
+	assert_bool(seen.mantled).is_true()
+	assert_bool(course.is_attempt_over()).is_false()
+	assert_float(course.runner_along()).is_greater_equal(START_LENGTH + 26.0)
+
+
+func test_mantling_from_a_wall_run_never_stalls() -> void:
+	var course := _course_of("res://course/sections/block_long_gap_wall_run_gap.tscn")
+	var steps: Array[Step] = [
+		Step.new(START_LENGTH + 6.5, &"jump"),
+		Step.new(START_LENGTH + 21.0, &"crouch"),
+		Step.new(START_LENGTH + 25.6, &"jump"),
+		Step.new(START_LENGTH + 27.0, &"crouch", false),
+		Step.new(START_LENGTH + 39.0, &"move_right"),
+		Step.new(START_LENGTH + 43.5, &"jump"),
+		Step.new(START_LENGTH + 55.0, &"move_right", false),
+	]
+
+	var seen := await _run_with(course, steps, START_LENGTH + 60.0)
+
+	assert_bool(seen.wall_ran).is_true()
+	assert_bool(seen.mantled).is_true()
+	assert_bool(course.is_attempt_over()).is_false()
+	assert_float(course.runner_along()).is_greater_equal(START_LENGTH + 60.0)
