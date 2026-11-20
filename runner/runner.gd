@@ -106,24 +106,22 @@ func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 	if heading.is_zero_approx():
 		return null
 	var face := _ledge_face(heading.normalized())
-	if face.is_empty():
+	if face == null:
 		return null
-	var normal: Vector3 = face["normal"]
-	var face_point: Vector3 = face["position"]
-	var inside := face_point - Vector3(normal.x, 0.0, normal.z).normalized() * _capsule.radius
-	var feet := global_position.y
-	var opening: float = face["opening"]
+	# Where the body's middle would stand on the top: a body radius in from the face.
+	var over_top := face.position - _horizontal_unit(face.normal) * _capsule.radius
+	var feet: float = global_position.y
 	var top_hit := _cast(
-		Vector3(inside.x, feet + opening, inside.z),
-		Vector3(inside.x, feet + LEDGE_MIN_TOP, inside.z),
+		Vector3(over_top.x, feet + face.opening, over_top.z),
+		Vector3(over_top.x, feet + LEDGE_MIN_TOP, over_top.z),
 	)
 	if top_hit.is_empty() or (top_hit["normal"] as Vector3).y < cos(floor_max_angle):
 		return null
 	var top: Vector3 = top_hit["position"]
 	if test_move(global_transform, Vector3.UP * (top.y - feet)):
 		return null
-	var clear := _room_above(top)
-	return RunnerMovement.LedgeContact.new(normal, top.y - feet, clear)
+	var room_on_top := _room_above(top)
+	return RunnerMovement.LedgeContact.new(face.normal, top.y - feet, room_on_top)
 
 
 ## The room above a ledge's top for a body standing with its middle at [param middle], on the
@@ -180,28 +178,31 @@ func _touched_wall() -> RunnerMovement.WallContact:
 	return RunnerMovement.WallContact.new(normal, id)
 
 
-## The lowest hit of rays cast along [param heading] from the body's axis, spaced evenly from
-## just above the feet to just below Mantle reach, on a face near enough vertical to be a wall;
-## empty if none. Its "opening" is the height above the feet of the first ray above that hit that
-## finds nothing, or Mantle reach if none does: the face's top is below it.
-func _ledge_face(heading: Vector3) -> Dictionary:
+## The lowest place rays cast along [param heading] from the body's axis, spaced evenly from
+## just above the feet to just below Mantle reach, hit a face near enough vertical to be a wall;
+## null if none do.
+func _ledge_face(heading: Vector3) -> LedgeFace:
 	var lowest := LEDGE_MIN_TOP
 	var highest := maxf(tuning.mantle_reach - LEDGE_MIN_TOP, lowest)
 	var gaps := ceili((highest - lowest) / LEDGE_PROBE_SPACING)
-	var face := { }
+	var face: LedgeFace = null
 	for index: int in gaps + 1:
 		var height := lerpf(lowest, highest, float(index) / gaps) if gaps > 0 else lowest
 		var from := global_position + Vector3.UP * height
 		var hit := _cast(from, from + heading * (_capsule.radius + LEDGE_PROBE_AHEAD))
-		if face.is_empty():
+		if face == null:
 			if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
-				face = hit
+				var hit_position: Vector3 = hit["position"]
+				var hit_normal: Vector3 = hit["normal"]
+				face = LedgeFace.new(hit_position, hit_normal, tuning.mantle_reach)
 		elif hit.is_empty():
-			face["opening"] = height
+			face.opening = height
 			return face
-	if not face.is_empty():
-		face["opening"] = tuning.mantle_reach
 	return face
+
+
+func _horizontal_unit(vector: Vector3) -> Vector3:
+	return Vector3(vector.x, 0.0, vector.z).normalized()
 
 
 ## The first thing a ray from [param from] to [param to] hits, other than the Runner; empty if
@@ -267,3 +268,20 @@ func _ceiling_eye_limit() -> float:
 		return INF
 	var ceiling := (hit["position"] as Vector3).y - global_position.y
 	return maxf(ceiling - tuning.camera_ceiling_gap, low_eye)
+
+
+## Where the ledge probe found a ledge's face.
+class LedgeFace:
+	## Where the lowest ray hit the face.
+	var position: Vector3
+	## The face's normal there.
+	var normal: Vector3
+	## Height above the feet of the first ray above that hit to find nothing, or Mantle reach if
+	## none did: the face's top is below it, m.
+	var opening: float
+
+
+	func _init(p_position: Vector3, p_normal: Vector3, p_opening: float) -> void:
+		position = p_position
+		normal = p_normal
+		opening = p_opening
