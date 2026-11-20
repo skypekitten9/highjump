@@ -111,3 +111,16 @@ func test_probe_reaches_set_outside_the_inspector_are_never_negative() -> void:
 	tuning.ledge_probe_ahead = -1.0
 	assert_float(tuning.wall_probe_reach).is_equal(0.0)
 	assert_float(tuning.ledge_probe_ahead).is_equal(0.0)
+
+
+func test_the_default_look_limit_is_80_degrees() -> void:
+	var tuning: RunnerTuning = DEFAULT_TUNING
+	assert_float(tuning.look_limit).is_equal(80.0)
+
+
+func test_the_look_limit_set_outside_the_inspector_stays_in_bounds() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.look_limit = -10.0
+	assert_float(tuning.look_limit).is_equal(0.0)
+	tuning.look_limit = 270.0
+	assert_float(tuning.look_limit).is_equal(180.0)

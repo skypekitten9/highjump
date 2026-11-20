@@ -76,6 +76,8 @@ func test_the_runner_never_sets_the_mouse_mode() -> void:
 func test_runner_placed_above_the_floor_falls_and_lands() -> void:
 	var world := _world_with_floor()
 	var runner: Runner = RunnerScene.instantiate()
+	# Stands still unless the test holds forward.
+	runner.holds_forward = false
 	runner.position.y = 2.0
 	world.add_child(runner)
 	var scene := scene_runner(world)
@@ -122,6 +124,8 @@ func _world_with_45_degree_ramp() -> Node3D:
 func test_running_up_a_45_degree_ramp_onto_its_flat_top_stays_on_the_ground() -> void:
 	var world := _world_with_45_degree_ramp()
 	var runner: Runner = RunnerScene.instantiate()
+	# Stands still unless the test holds forward.
+	runner.holds_forward = false
 	runner.position.z = 3.0
 	world.add_child(runner)
 	var scene := scene_runner(world)
@@ -148,18 +152,21 @@ func test_running_up_a_45_degree_ramp_onto_its_flat_top_stays_on_the_ground() ->
 func test_letting_go_partway_down_a_45_degree_ramp_stops_the_runner_on_the_ramp() -> void:
 	var world := _world_with_45_degree_ramp()
 	var runner: Runner = RunnerScene.instantiate()
-	# On the flat top, facing -Z, so running back runs down the ramp toward +Z.
+	# Stands still unless the test holds forward.
+	runner.holds_forward = false
+	# On the flat top, facing +Z, so running forward runs down the ramp toward +Z.
 	runner.position = Vector3(0.0, 2.0, -4.0)
+	runner.rotation.y = PI
 	world.add_child(runner)
 	var scene := scene_runner(world)
 	await scene.simulate_frames(10, 16)
 
-	Input.action_press("move_back")
+	Input.action_press("move_forward")
 	for frame: int in 60:
 		await scene.simulate_frames(1, 16)
 		if runner.position.z > -1.6:
 			break
-	Input.action_release("move_back")
+	Input.action_release("move_forward")
 	await scene.simulate_frames(30, 16)
 
 	# Stopped on the ramp, short of its foot at z = 0.
@@ -241,10 +248,12 @@ func _world_with_ceiling(bottom: float, csg: bool) -> Node3D:
 	return world
 
 
-## A Runner on the floor at z = [param z], facing -Z, its body findable by [method _body_top].
-## Uses [param tuning] if given, otherwise the default tuning.
+## A Runner on the floor at z = [param z], facing -Z and not holding forward, its body findable
+## by [method _body_top]. Uses [param tuning] if given, otherwise the default tuning.
 func _add_runner(world: Node3D, z: float, tuning: RunnerTuning = null) -> Runner:
 	var runner: Runner = RunnerScene.instantiate()
+	# Stands still unless the test holds forward.
+	runner.holds_forward = false
 	if tuning != null:
 		runner.tuning = tuning
 	runner.position.z = z

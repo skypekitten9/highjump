@@ -1,6 +1,7 @@
 class_name Runner
 extends CharacterBody3D
-## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
+## The body the Player controls, seen from its own eyes. Reads input, holding forward for the
+## Player, and does mouse look within the Look limit either side of the Course heading;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
 ## Reports whether there is headroom to stand, which wall the body touches and the ledge ahead,
 ## sizes the body as RunnerMovement says, and eases the camera's height after it, its roll
@@ -20,6 +21,19 @@ const LEDGE_PROBE_SPACING := 0.2
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
+## Whether the Runner builds its intent as if forward were always held (docs/adr/0008). Off only
+## where something else drives forward, such as a test that needs the Runner to stand still.
+@export var holds_forward := true
+
+## The Course heading: the fixed direction in the world the Course leads in. The Look limit keeps
+## the body's yaw within [member RunnerTuning.look_limit] either side of it. Set from outside;
+## until then it is the way the Runner faces when it enters the tree. Only its horizontal part
+## counts. Setting it turns the body back within the limit if it is outside.
+var course_heading := Vector3.ZERO:
+	set(value):
+		course_heading = Vector3(value.x, 0.0, value.z).normalized()
+		if is_inside_tree():
+			_turn(0.0)
 
 var _movement: RunnerMovement
 var _capsule: CapsuleShape3D
@@ -42,6 +56,8 @@ func _ready() -> void:
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
 	floor_snap_length = tuning.floor_snap_length
+	if course_heading.is_zero_approx():
+		course_heading = -global_basis.z
 
 
 ## Turns the camera only while the mouse is captured. Never captures or frees it: whatever
@@ -55,7 +71,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	var move := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
+	# Back does nothing (docs/adr/0008).
+	var forward := 1.0 if holds_forward else Input.get_action_strength("move_forward")
+	var move := Vector2(Input.get_axis("move_left", "move_right"), -forward).limit_length(1.0)
 	var wish := global_basis * Vector3(move.x, 0.0, move.y)
 	wish.y = 0.0
 	var on_floor := is_on_floor()
@@ -138,15 +156,29 @@ func _room_above(middle: Vector3) -> float:
 	return room
 
 
-## Turns the body and pitches the head by [param relative] pixels of mouse movement. Leaves the
-## camera's Wall-run roll alone.
+## Turns the body and pitches the head by [param relative] pixels of mouse movement. The turn
+## stops hard at the Look limit either side of the Course heading. Leaves the camera's Wall-run
+## roll alone.
 func look(relative: Vector2) -> void:
-	rotate_y(-relative.x * tuning.mouse_sensitivity)
+	_turn(-relative.x * tuning.mouse_sensitivity)
 	_head.rotation.x = clampf(
 		_head.rotation.x - relative.y * tuning.mouse_sensitivity,
 		-PITCH_LIMIT,
 		PITCH_LIMIT,
 	)
+
+
+## Turns the body by [param turn] rad, left positive, stopping hard at the Look limit either side
+## of the Course heading. A body outside the limit is turned back within it. A limit of 180
+## degrees or more lets it turn freely.
+func _turn(turn: float) -> void:
+	var limit := deg_to_rad(tuning.look_limit)
+	if limit >= PI:
+		global_rotation.y += turn
+		return
+	var heading_yaw := atan2(-course_heading.x, -course_heading.z)
+	var offset := angle_difference(heading_yaw, global_rotation.y)
+	global_rotation.y = heading_yaw + clampf(offset + turn, -limit, limit)
 
 
 ## The wall the body touches: the most nearly vertical wall the last move collided with, or else,
