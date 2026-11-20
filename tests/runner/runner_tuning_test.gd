@@ -71,6 +71,7 @@ func test_default_mantle_values() -> void:
 	assert_float(tuning.mantle_leap_gravity_scale).is_equal(2.0)
 	assert_float(tuning.mantle_inward_speed).is_equal(3.0)
 	assert_float(tuning.mantle_input_angle).is_equal(60.0)
+	assert_float(tuning.mantle_camera_dip).is_equal(6.0)
 
 
 func test_mantle_leap_gravity_set_outside_the_inspector_never_reaches_zero() -> void:

@@ -850,3 +850,98 @@ func test_steering_into_a_low_wall_during_a_wall_run_mantles_onto_its_top() -> v
 	assert_float(runner.position.x).is_greater(WALL_FACE_X + RUNNER_RADIUS)
 	# Still heading on along the wall, fast.
 	assert_float(-runner.velocity.z).is_greater(speed_along * 0.5)
+
+
+## Looks up by [param look_up] pixels of mouse movement, then jumps [param runner] into the box
+## ahead, holding forward, until it lands after a Mantle. Calls [param on_mantle] once, on the
+## Mantle's first frame, if given. Returns the camera's pitch relative to the mouse pitch on each
+## frame of the Mantle under "during", and on each of the 60 frames after it under "after",
+## degrees (negative is down).
+func _camera_dip_through_mantle(
+	world: Node3D,
+	runner: Runner,
+	look_up := 0.0,
+	on_mantle := Callable(),
+) -> Dictionary:
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	runner.look(Vector2(0.0, -look_up))
+	var head_pitch := look_up * rad_to_deg(_tuning.mouse_sensitivity)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	var during: Array[float] = []
+	var after: Array[float] = []
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_mantling():
+			if during.is_empty() and on_mantle.is_valid():
+				on_mantle.call()
+			during.append(_camera_aim(runner).y - head_pitch)
+		elif not during.is_empty():
+			after.append(_camera_aim(runner).y - head_pitch)
+			if after.size() == 60:
+				break
+	Input.action_release("move_forward")
+	return { "during": during, "after": after }
+
+
+## Largest change from one pitch to the next in [param pitches], starting from [param start].
+func _largest_step(start: float, pitches: Array[float]) -> float:
+	var largest := 0.0
+	var previous := start
+	for pitch: float in pitches:
+		largest = maxf(largest, absf(pitch - previous))
+		previous = pitch
+	return largest
+
+
+func test_the_camera_dips_during_a_mantle_and_eases_back_to_the_mouse_pitch() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var runner := _add_runner(world, 0.0)
+	# Looking up a little, by mouse pitch alone.
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 40.0)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+	var full := _tuning.mantle_camera_dip
+
+	assert_int(during.size()).is_greater(5)
+	assert_int(after.size()).is_equal(60)
+	# Dips most of the way to the full dip, never past it, and eases back to the mouse pitch.
+	assert_float(during.min()).is_less(-full * 0.5)
+	assert_float(during.min()).is_greater_equal(-full - 0.01)
+	assert_float(_largest_step(0.0, during + after)).is_less(full * 0.3)
+	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
+
+
+func test_a_mantle_that_ends_early_eases_the_camera_back_to_level_without_a_jump() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var box: Node3D = world.get_child(world.get_child_count() - 1)
+	var runner := _add_runner(world, 0.0)
+	# The box drops away as the Mantle begins, so the leap falls back past its top in mid-air.
+	var drop_box := func() -> void:
+		box.position.y -= 50.0
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 0.0, drop_box)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+	var full := _tuning.mantle_camera_dip
+
+	assert_int(after.size()).is_equal(60)
+	assert_float(during[-1]).is_less(-full * 0.5)
+	assert_float(_largest_step(during[-1], after)).is_less(full * 0.3)
+	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
+
+
+func test_with_the_mantle_dip_at_zero_the_camera_stays_level() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var no_dip: RunnerTuning = _tuning.duplicate()
+	no_dip.mantle_camera_dip = 0.0
+	var runner := _add_runner(world, 0.0, no_dip)
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 0.0)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+
+	assert_int(during.size()).is_greater(5)
+	for pitch: float in during + after:
+		assert_float(pitch).is_equal_approx(0.0, 0.001)

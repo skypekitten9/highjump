@@ -140,5 +140,8 @@ const MIN_MANTLE_LEAP_GRAVITY_SCALE := 0.1
 ## How far the camera rolls away from the wall during a Wall-run, easing in and out at the
 ## camera smoothing rate. 0 turns the tilt off, degrees.
 @export_range(0.0, 45.0, 0.5, "suffix:°") var wall_run_camera_tilt: float = 10.0
+## How far the camera pitches down during a Mantle, easing in and back out at the camera
+## smoothing rate. Separate from the mouse pitch. 0 turns the dip off, degrees.
+@export_range(0.0, 45.0, 0.5, "suffix:°") var mantle_camera_dip: float = 6.0
 ## The camera stays at least this far below a ceiling directly overhead, m.
 @export_range(0.0, 0.5, 0.01, "or_greater", "suffix:m") var camera_ceiling_gap: float = 0.12

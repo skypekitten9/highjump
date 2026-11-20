@@ -3,8 +3,8 @@ extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
 ## Reports whether there is headroom to stand, which wall the body touches and the ledge ahead,
-## sizes the body as RunnerMovement says, and eases the camera's height after it and its roll
-## during a Wall-run.
+## sizes the body as RunnerMovement says, and eases the camera's height after it, its roll
+## during a Wall-run and its dip during a Mantle.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
 ## How far beyond the body the ledge probe looks for a ledge's face, m.
@@ -209,13 +209,17 @@ func _has_headroom() -> bool:
 
 ## Eases the eyes toward the body's eye height, but never above a ceiling overhead (going
 ## under one quickly would otherwise drag the camera through it before the ease catches up).
-## Eases the camera's roll toward the Wall-run tilt at the same rate.
+## Eases the camera's roll toward the Wall-run tilt, and its pitch toward the Mantle dip, at the
+## same rate, so neither snaps when a run or a Mantle ends. The dip pitches the camera within
+## the Head, leaving the mouse pitch alone.
 func _ease_camera(delta: float) -> void:
 	var target := _capsule.height - _eye_below_top
 	var weight := 1.0 - exp(-tuning.camera_smoothing * delta)
 	var eased := lerpf(_head.position.y, target, weight)
 	_head.position.y = minf(eased, _ceiling_eye_limit())
 	_camera.rotation.z = lerpf(_camera.rotation.z, _wall_run_roll(), weight)
+	var dip := -deg_to_rad(tuning.mantle_camera_dip) if is_mantling() else 0.0
+	_camera.rotation.x = lerpf(_camera.rotation.x, dip, weight)
 
 
 ## The camera's roll during a Wall-run: away from the wall's side of the view, so a wall on the
