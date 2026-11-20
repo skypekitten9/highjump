@@ -92,8 +92,10 @@ const MIN_MANTLE_LEAP_GRAVITY_SCALE := 0.1
 ## m/s.
 @export_range(0.0, 60.0, 0.5, "or_greater", "suffix:m/s") var top_wall_run_speed: float = 24.0
 ## How far beyond the body a Wall-run still finds the wall being run, m. Keeps contact with a wall
-## the body runs along without pressing into it.
-@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var wall_probe_reach: float = 0.35
+## the body runs along without pressing into it. Never negative.
+@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var wall_probe_reach: float = 0.35:
+	set(value):
+		wall_probe_reach = maxf(value, 0.0)
 
 @export_group("Mantle")
 ## Mantle reach: how far above the Runner's feet a ledge's top can be and still be Mantled, m.
@@ -101,6 +103,10 @@ const MIN_MANTLE_LEAP_GRAVITY_SCALE := 0.1
 @export_range(0.0, 5.0, 0.05, "or_greater", "suffix:m") var mantle_reach: float = 1.6:
 	set(value):
 		mantle_reach = maxf(value, 0.0)
+## How far beyond the body the ledge probe looks for a ledge's face, m. Never negative.
+@export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var ledge_probe_ahead: float = 0.3:
+	set(value):
+		ledge_probe_ahead = maxf(value, 0.0)
 ## A Mantle's leap is lifted just enough for its arc to peak this far above the top, m. Never
 ## negative.
 @export_range(0.0, 2.0, 0.01, "or_greater", "suffix:m") var mantle_clearance: float = 0.25:

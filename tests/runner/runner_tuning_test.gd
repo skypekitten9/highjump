@@ -67,6 +67,7 @@ func test_slide_boost_cooldown_set_outside_the_inspector_never_reaches_zero() ->
 func test_default_mantle_values() -> void:
 	var tuning: RunnerTuning = DEFAULT_TUNING
 	assert_float(tuning.mantle_reach).is_equal(1.6)
+	assert_float(tuning.ledge_probe_ahead).is_equal(0.3)
 	assert_float(tuning.mantle_clearance).is_equal(0.25)
 	assert_float(tuning.mantle_leap_gravity_scale).is_equal(2.0)
 	assert_float(tuning.mantle_inward_speed).is_equal(3.0)
@@ -102,3 +103,11 @@ func test_mantle_camera_dip_set_outside_the_inspector_stays_in_bounds() -> void:
 	assert_float(tuning.mantle_camera_dip).is_equal(0.0)
 	tuning.mantle_camera_dip = 60.0
 	assert_float(tuning.mantle_camera_dip).is_equal(45.0)
+
+
+func test_probe_reaches_set_outside_the_inspector_are_never_negative() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.wall_probe_reach = -1.0
+	tuning.ledge_probe_ahead = -1.0
+	assert_float(tuning.wall_probe_reach).is_equal(0.0)
+	assert_float(tuning.ledge_probe_ahead).is_equal(0.0)

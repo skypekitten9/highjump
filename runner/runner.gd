@@ -7,8 +7,6 @@ extends CharacterBody3D
 ## during a Wall-run and its dip during a Mantle.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
-## How far beyond the body the ledge probe looks for a ledge's face, m.
-const LEDGE_PROBE_AHEAD := 0.3
 ## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
 ## under the Runner for a top, m.
 const LEDGE_MIN_TOP := 0.05
@@ -189,7 +187,7 @@ func _ledge_face(heading: Vector3) -> LedgeFace:
 	for index: int in gaps + 1:
 		var height := lerpf(lowest, highest, float(index) / gaps) if gaps > 0 else lowest
 		var from := global_position + Vector3.UP * height
-		var hit := _cast(from, from + heading * (_capsule.radius + LEDGE_PROBE_AHEAD))
+		var hit := _cast(from, from + heading * (_capsule.radius + tuning.ledge_probe_ahead))
 		if face == null:
 			if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
 				var hit_position: Vector3 = hit["position"]
