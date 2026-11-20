@@ -4,10 +4,11 @@ extends RefCounted
 ## Never touches nodes, so it can be stepped frame by frame without a scene. It continues from
 ## whatever velocity it is given, so other mechanics can hand speed to it (see docs/adr/0004).
 
-## What the Runner is doing. A Crouch is low; Run and Air are standing.
+## What the Runner is doing. A Slide and a Crouch are low; Run and Air are standing.
 enum State {
 	RUN,
 	AIR,
+	SLIDE,
 	CROUCH,
 }
 
@@ -23,6 +24,10 @@ var _coyote_timer := 0.0
 var _jump_buffer_timer := 0.0
 ## Normal of the floor the Runner stayed on last frame; zero if it was airborne or jumped.
 var _last_floor_normal := Vector3.ZERO
+## Time since this stepper was created, s. Measures the Slide boost cooldown.
+var _time := 0.0
+## [member _time] when the last Slide began; far in the past if none has.
+var _last_slide_start := -INF
 
 
 ## Returns the Runner's velocity for this physics frame.
@@ -42,14 +47,26 @@ func step(
 	tuning: RunnerTuning,
 	delta: float,
 ) -> Vector3:
+	_time += delta
 	var grounded := _is_grounded(velocity, on_floor, floor_normal)
 	_update_jump_timers(jump_pressed, grounded, tuning, delta)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	var vertical: float
 	if grounded:
-		_update_ground_state(crouch_held, can_stand)
-		var max_speed := tuning.crouch_speed if _state == State.CROUCH else tuning.run_speed
-		horizontal = _ground_horizontal(horizontal, wish, max_speed, tuning, delta)
+		horizontal = _update_ground_state(horizontal, crouch_held, can_stand, tuning)
+		match _state:
+			State.SLIDE:
+				horizontal = _slide_horizontal(horizontal, tuning, delta)
+			State.CROUCH:
+				horizontal = _ground_horizontal(
+					horizontal,
+					wish,
+					tuning.crouch_speed,
+					tuning,
+					delta,
+				)
+			_:
+				horizontal = _ground_horizontal(horizontal, wish, tuning.run_speed, tuning, delta)
 		# Keep velocity in the floor plane (v . n = 0) without changing horizontal speed.
 		vertical = (
 			-(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
@@ -80,7 +97,7 @@ func state() -> State:
 
 ## True if the body should be low after the last step.
 func is_low() -> bool:
-	return _state == State.CROUCH
+	return _state == State.SLIDE or _state == State.CROUCH
 
 
 ## Forgets any waiting jump press and any coyote time. For mechanics that hand control back
@@ -116,13 +133,40 @@ func _is_grounded(velocity: Vector3, on_floor: bool, floor_normal: Vector3) -> b
 	return on_floor and floor_normal.y > MIN_FLOOR_NORMAL_Y and not leaving
 
 
-## Crouch while crouch is held; stand back up to Run only once crouch is released and there is
-## room. Landing goes straight to the ground state the inputs ask for.
-func _update_ground_state(crouch_held: bool, can_stand: bool) -> void:
-	if crouch_held or not can_stand:
-		_state = State.CROUCH
-	else:
-		_state = State.RUN
+## Ground state changes before this frame's movement. Returns the horizontal velocity, boosted
+## if a Slide begins.
+func _update_ground_state(
+	horizontal: Vector3,
+	crouch_held: bool,
+	can_stand: bool,
+	tuning: RunnerTuning,
+) -> Vector3:
+	match _state:
+		State.RUN:
+			if crouch_held and horizontal.length() >= tuning.slide_entry_speed:
+				return _start_slide(horizontal, tuning)
+			if crouch_held or not can_stand:
+				_state = State.CROUCH
+		State.SLIDE:
+			pass
+		_:
+			# Crouch, or landing: crouch while crouch is held, and stand back up to Run only
+			# once crouch is released and there is room.
+			_state = State.CROUCH if crouch_held or not can_stand else State.RUN
+	return horizontal
+
+
+## Starts a Slide with a boost scaled by how long ago the last Slide began.
+func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
+	_state = State.SLIDE
+	_last_slide_start = _time
+	var speed := horizontal.length()
+	var boosted := speed + tuning.slide_boost
+	return horizontal.normalized() * boosted
+
+
+func _slide_horizontal(horizontal: Vector3, tuning: RunnerTuning, delta: float) -> Vector3:
+	return horizontal.move_toward(Vector3.ZERO, tuning.slide_friction * delta)
 
 
 func _ground_horizontal(

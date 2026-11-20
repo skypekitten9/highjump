@@ -331,3 +331,25 @@ func test_landing_without_room_to_stand_is_a_crouch() -> void:
 	assert_bool(_movement.is_low()).is_false()
 	_crouch_step(falling, FORWARD, false, false)
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+
+
+func test_default_run_speed_is_9_metres_per_second() -> void:
+	assert_float(_run_speed()).is_equal(9.0)
+
+
+## Runs on flat ground at Run speed long enough that no Slide began recently.
+func _run_past_the_boost_cooldown() -> Vector3:
+	var velocity := FORWARD * _run_speed()
+	for frame: int in _frames_past(_tuning.slide_boost_cooldown):
+		velocity = _crouch_step(velocity, FORWARD, false)
+	return velocity
+
+
+func test_crouching_at_slide_entry_speed_starts_a_slide_with_the_full_boost() -> void:
+	_run_past_the_boost_cooldown()
+	var velocity := _crouch_step(FORWARD * _tuning.slide_entry_speed, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	assert_bool(_movement.is_low()).is_true()
+	# One frame of slide friction already applied after the boost.
+	var boosted := _tuning.slide_entry_speed + _tuning.slide_boost
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(boosted, 0.1)
