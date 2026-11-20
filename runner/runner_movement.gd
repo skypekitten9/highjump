@@ -168,7 +168,7 @@ func _must_stay_low(crouch_held: bool, headroom: bool) -> bool:
 ## full once the cooldown has passed.
 func _start_slide(horizontal: Vector3) -> Vector3:
 	var since_last := _elapsed - _last_slide_start
-	var boost_fraction := clampf(since_last / maxf(_tuning.slide_boost_cooldown, 0.001), 0.0, 1.0)
+	var boost_fraction := clampf(since_last / _tuning.slide_boost_cooldown, 0.0, 1.0)
 	_state = State.SLIDE
 	_slide_released = false
 	_last_slide_start = _elapsed
