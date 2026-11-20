@@ -104,5 +104,8 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## How quickly the camera eases between standing and low eye height, 1/s. Higher is snappier;
 ## about 3 / this is the time to get most of the way there, s.
 @export_range(0.1, 50.0, 0.1, "or_greater", "suffix:1/s") var camera_smoothing: float = 14.0
+## How far the camera rolls away from the wall during a Wall-run, easing in and out at the
+## camera smoothing rate. 0 turns the tilt off, degrees.
+@export_range(0.0, 45.0, 0.5, "suffix:°") var wall_run_camera_tilt: float = 10.0
 ## The camera stays at least this far below a ceiling directly overhead, m.
 @export_range(0.0, 0.5, 0.01, "or_greater", "suffix:m") var camera_ceiling_gap: float = 0.12

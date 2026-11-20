@@ -3,7 +3,7 @@ extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
 ## Reports whether there is headroom to stand and which wall the body touches, sizes the body as
-## RunnerMovement says, and eases the camera's height after it.
+## RunnerMovement says, and eases the camera's height after it and its roll during a Wall-run.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
 ## How far beyond the body the probe toward the wall being run still finds it, m. Keeps contact
@@ -43,7 +43,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	var motion := event as InputEventMouseMotion
 	if motion:
-		_look(motion.relative)
+		look(motion.relative)
 
 
 func _physics_process(delta: float) -> void:
@@ -72,6 +72,17 @@ func _physics_process(delta: float) -> void:
 ## True if the Runner is in a Wall-run.
 func is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
+
+
+## Turns the body and pitches the head by [param relative] pixels of mouse movement. Leaves the
+## camera's Wall-run roll alone.
+func look(relative: Vector2) -> void:
+	rotate_y(-relative.x * tuning.mouse_sensitivity)
+	_head.rotation.x = clampf(
+		_head.rotation.x - relative.y * tuning.mouse_sensitivity,
+		-PITCH_LIMIT,
+		PITCH_LIMIT,
+	)
 
 
 ## Fills in the wall the body touches: the most nearly vertical wall the last move collided with,
@@ -122,11 +133,25 @@ func _has_headroom() -> bool:
 
 ## Eases the eyes toward the body's eye height, but never above a ceiling overhead (going
 ## under one quickly would otherwise drag the camera through it before the ease catches up).
+## Eases the camera's roll toward the Wall-run tilt at the same rate.
 func _ease_camera(delta: float) -> void:
 	var target := _capsule.height - _eye_below_top
 	var weight := 1.0 - exp(-tuning.camera_smoothing * delta)
 	var eased := lerpf(_head.position.y, target, weight)
 	_head.position.y = minf(eased, _ceiling_eye_limit())
+	_camera.rotation.z = lerpf(_camera.rotation.z, _wall_run_roll(), weight)
+
+
+## The camera's roll during a Wall-run: away from the wall's side of the view, so a wall on the
+## right rolls it left. Level outside a run, rad.
+func _wall_run_roll() -> float:
+	var wall_normal := _movement.wall_normal()
+	if wall_normal.is_zero_approx():
+		return 0.0
+	var tilt := deg_to_rad(tuning.wall_run_camera_tilt)
+	# The wall's normal points away from it: toward the left of the view for a wall on the right.
+	var wall_on_right := wall_normal.dot(global_basis.x) < 0.0
+	return tilt if wall_on_right else -tilt
 
 
 ## Highest eye height that stays below whatever is directly above the low eyes.
@@ -140,12 +165,3 @@ func _ceiling_eye_limit() -> float:
 		return INF
 	var ceiling := (hit["position"] as Vector3).y - global_position.y
 	return maxf(ceiling - tuning.camera_ceiling_gap, low_eye)
-
-
-func _look(relative: Vector2) -> void:
-	rotate_y(-relative.x * tuning.mouse_sensitivity)
-	_head.rotation.x = clampf(
-		_head.rotation.x - relative.y * tuning.mouse_sensitivity,
-		-PITCH_LIMIT,
-		PITCH_LIMIT,
-	)
