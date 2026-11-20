@@ -46,6 +46,8 @@ const MIN_STALL_TIME := 0.05
 		stall_time = maxf(value, MIN_STALL_TIME)
 ## How far along the Course the Runner must get in [member stall_time] not to Stall, m.
 @export_range(0.0, 10.0, 0.05, "or_greater", "suffix:m") var stall_progress: float = 1.0
+## Where the Best distance is saved between sessions.
+@export var best_distance_path := "user://best_distance.save"
 
 ## The Sections laid, in order along the Course.
 var _laid: Array[Section] = []
@@ -61,15 +63,22 @@ var _attempt_time := 0.0
 ## How far along the Course the Runner was, as (time into the Attempt, m along), oldest first,
 ## going back to the newest at least [member stall_time] old.
 var _progress: Array[Vector2] = []
+## The Distance: the furthest along the Course the Runner has got this Attempt, from where it
+## started, in whole metres.
+var _distance := 0
+## The Best distance: the greatest Distance of any Attempt, in whole metres.
+var _best_distance := 0
 
 var _runner: Runner
 
 @onready var _sections: Node3D = $Sections
 @onready var _end_screen: EndScreen = $EndScreen
+@onready var _hud: Hud = $Hud
 
 
 func _ready() -> void:
 	super()
+	_best_distance = BestDistance.read(best_distance_path)
 	_start_attempt()
 
 
@@ -84,6 +93,7 @@ func _physics_process(delta: float) -> void:
 	_free_behind()
 	if not is_attempt_over():
 		_attempt_time += delta
+		_note_distance()
 		_check_for_end()
 
 
@@ -95,6 +105,17 @@ func is_attempt_over() -> bool:
 ## How the Attempt ended; [constant Ending.NONE] while it runs.
 func ending() -> Ending:
 	return _ending
+
+
+## The Distance: how far along the Course heading the Runner has got this Attempt, from where it
+## started, in whole metres. Never goes down.
+func distance() -> int:
+	return _distance
+
+
+## The Best distance: the greatest Distance of any Attempt, kept between sessions, in whole metres.
+func best_distance() -> int:
+	return _best_distance
 
 
 ## The Course heading: the fixed direction in the world the Course leads in.
@@ -128,6 +149,8 @@ func _start_attempt() -> void:
 	_ending = Ending.NONE
 	_attempt_time = 0.0
 	_progress.clear()
+	_distance = 0
+	_hud.show_distance(_distance)
 	_end_screen.hide()
 	_replace_runner()
 	_lay(start_section)
@@ -154,6 +177,12 @@ func _is_retry(event: InputEvent) -> bool:
 	return click != null and click.pressed
 
 
+## Raises the Distance to where the Runner is now, if that is further, and shows it.
+func _note_distance() -> void:
+	_distance = maxi(_distance, floori(runner_along() - runner_start))
+	_hud.show_distance(_distance)
+
+
 ## Ends the Attempt if the Runner has fallen or Stalled.
 func _check_for_end() -> void:
 	var feet := _runner.global_position.y - global_position.y
@@ -176,11 +205,16 @@ func _has_stalled() -> bool:
 	return oldest.x <= since and along - oldest.y < stall_progress
 
 
-## Ends the Attempt by [param how]: the Runner stops responding and the end screen appears.
+## Ends the Attempt by [param how]: the Runner stops responding, a Distance beyond the Best
+## distance is saved as the new one, and the end screen appears.
 func _end_attempt(how: Ending) -> void:
 	_ending = how
 	_runner.process_mode = Node.PROCESS_MODE_DISABLED
-	_end_screen.show_ending(how)
+	var new_best := _distance > _best_distance
+	if new_best:
+		_best_distance = _distance
+		BestDistance.write(best_distance_path, _best_distance)
+	_end_screen.show_ending(how, _distance, _best_distance, new_best)
 	attempt_ended.emit(how)
 
 

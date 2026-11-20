@@ -6,12 +6,15 @@ extends GdUnitTestSuite
 const CourseScene := preload("res://course/course.tscn")
 const START_SECTION := "res://course/sections/start.tscn"
 const SEED := 4711
+## Where these tests' Courses save the Best distance, so the Player's own is never touched.
+const SAVE_PATH := "user://course_test.save"
 ## Where difficulty 2 and 3 unlock with the default tuning, m along the Course.
 const DIFFICULTY_2_UNLOCK := 150.0
 const DIFFICULTY_3_UNLOCK := 400.0
 
 
 func after_test() -> void:
+	DirAccess.remove_absolute(SAVE_PATH)
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 
 
@@ -19,6 +22,7 @@ func after_test() -> void:
 func _course() -> Course:
 	var course: Course = auto_free(CourseScene.instantiate())
 	course.course_seed = SEED
+	course.best_distance_path = SAVE_PATH
 	return course
 
 

@@ -5,6 +5,8 @@ extends GdUnitTestSuite
 const CourseScene := preload("res://course/course.tscn")
 const START_SECTION := "res://course/sections/start.tscn"
 const SEED := 4711
+## Where these tests' Courses save the Best distance, so the Player's own is never touched.
+const SAVE_PATH := "user://attempt_test.save"
 ## How far below floor height 0 the feet must be for a fall, with the default tuning, m.
 const FALL_DEPTH := 10.0
 ## Comfortably more than a Stall takes to be seen once the Runner is held still: physics frames.
@@ -12,6 +14,7 @@ const STALL_FRAMES := 90
 
 
 func after_test() -> void:
+	DirAccess.remove_absolute(SAVE_PATH)
 	Input.action_release("jump")
 	Input.action_release("crouch")
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
@@ -21,6 +24,7 @@ func after_test() -> void:
 func _course() -> Course:
 	var course: Course = auto_free(CourseScene.instantiate())
 	course.course_seed = SEED
+	course.best_distance_path = SAVE_PATH
 	return course
 
 
