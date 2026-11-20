@@ -63,6 +63,25 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## Fastest a Slide turns toward sideways input, rad/s.
 @export_range(0.0, 10.0, 0.05, "or_greater", "suffix:rad/s") var slide_turn_rate: float = 0.6
 
+@export_group("Wall-run")
+## Meeting a wall in the air at or above this horizontal speed can start a Wall-run, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_run_entry_speed: float = 6.0
+## A Wall-run that slows below this speed ends, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_run_end_speed: float = 4.0
+## A wall met more head-on than this, measured from parallel to it, starts no Wall-run, degrees.
+@export_range(0.0, 90.0, 1.0, "suffix:°") var wall_run_max_entry_angle: float = 60.0
+## The held direction may point away from the wall by up to this, measured from parallel to it,
+## and still start a Wall-run, degrees.
+@export_range(0.0, 90.0, 0.5, "suffix:°") var wall_run_input_angle: float = 17.5
+## A surface whose normal is within this of horizontal is a wall that can be run, degrees.
+@export_range(0.0, 45.0, 0.5, "suffix:°") var wall_max_tilt: float = 14.5
+## Gravity during a Wall-run, as a multiple of gravity.
+@export_range(0.0, 1.0, 0.01, "or_greater", "suffix:×") var wall_run_gravity_scale: float = 0.35
+## How fast a Wall-run loses speed, m/s^2.
+@export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s²") var wall_run_slowdown: float = 1.0
+## Falling speed is capped at this as a Wall-run starts; upward speed is kept, m/s.
+@export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s") var wall_run_max_entry_fall: float = 2.0
+
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.
 @export_range(

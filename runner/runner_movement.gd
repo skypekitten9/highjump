@@ -5,12 +5,14 @@ extends RefCounted
 ## without a scene. It continues from whatever velocity it is given, so other mechanics can hand
 ## speed to it (see docs/adr/0004).
 
-## What the Runner is doing. A Slide and a Crouch are low; Run and Air stand where there is room.
+## What the Runner is doing. A Slide and a Crouch are low; Run, Air and a Wall-run stand where
+## there is room.
 enum State {
 	RUN,
 	AIR,
 	SLIDE,
 	CROUCH,
+	WALL_RUN,
 }
 
 ## Speed away from the floor plane above which a floor contact is ignored (leaving it), m/s.
@@ -34,6 +36,12 @@ var _last_floor_normal := Vector3.ZERO
 var _elapsed := 0.0
 ## [member _elapsed] when the last Slide began; far in the past if none has.
 var _last_slide_start := -INF
+## The velocity the last step returned, before the engine's collision changed it.
+var _last_velocity := Vector3.ZERO
+## Horizontal unit normal of the wall being run; meaningful only in a Wall-run.
+var _wall_normal := Vector3.ZERO
+## Horizontal unit direction the Wall-run runs in, along the wall.
+var _wall_direction := Vector3.ZERO
 
 
 func _init(tuning: RunnerTuning) -> void:
@@ -45,6 +53,13 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 	_elapsed += delta
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
+	if _state == State.WALL_RUN:
+		if _wall_run_continues(grounded, contact, velocity):
+			return _finish(_wall_run(velocity, delta), false, contact)
+		# Ends keeping its velocity; a landing goes on through the ground states below.
+		_go_airborne()
+	elif _starts_wall_run(intent, contact, velocity, grounded):
+		return _finish(_start_wall_run(contact, velocity), false, contact)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	var vertical: float
 	if grounded:
@@ -82,11 +97,7 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 		clear_jump_timers()
 		grounded = false
 		_go_airborne()
-	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
-	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
-	# stand, even in the air, so it never stands up into a ceiling.
-	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
-	return Vector3(horizontal.x, vertical, horizontal.z)
+	return _finish(Vector3(horizontal.x, vertical, horizontal.z), grounded, contact)
 
 
 ## True if the last step kept the Runner on the floor (it neither was airborne nor jumped),
@@ -98,6 +109,11 @@ func is_on_ground() -> bool:
 ## What the Runner was doing in the last step.
 func state() -> State:
 	return _state
+
+
+## Horizontal unit normal of the wall being run, or zero when not in a Wall-run.
+func wall_normal() -> Vector3:
+	return _wall_normal if _state == State.WALL_RUN else Vector3.ZERO
 
 
 ## True if the last step was a Slide that carries on after crouch was released.
@@ -116,6 +132,16 @@ func is_low() -> bool:
 func clear_jump_timers() -> void:
 	_coyote_timer = 0.0
 	_jump_buffer_timer = 0.0
+
+
+## Records what this step decided and returns [param velocity].
+func _finish(velocity: Vector3, grounded: bool, contact: Contact) -> Vector3:
+	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
+	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
+	# stand, even in the air, so it never stands up into a ceiling.
+	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
+	_last_velocity = velocity
+	return velocity
 
 
 func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> void:
@@ -248,6 +274,80 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 	return -(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
 
 
+## True if the Runner meets a wall in the air that it can run: fast enough, at a glancing enough
+## angle, while the Player holds a direction into or along it. Speed is measured before the
+## collision took away the speed going into the wall.
+func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
+	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
+		return false
+	var normal := _horizontal_unit(contact.wall_normal)
+	var horizontal := _before_wall_collision(velocity, normal)
+	var speed := horizontal.length()
+	if speed < _tuning.wall_run_entry_speed or is_zero_approx(speed):
+		return false
+	var head_on := asin(clampf(-horizontal.dot(normal) / speed, 0.0, 1.0))
+	if head_on > deg_to_rad(_tuning.wall_run_max_entry_angle):
+		return false
+	if _along_wall(horizontal, normal).is_zero_approx():
+		return false
+	if intent.move_direction.is_zero_approx():
+		return false
+	var away := intent.move_direction.normalized().dot(normal)
+	return away <= sin(deg_to_rad(_tuning.wall_run_input_angle))
+
+
+## Starts a Wall-run: all horizontal speed turns along the wall, falling speed is capped and
+## upward speed is kept (see docs/adr/0006).
+func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
+	var normal := _horizontal_unit(contact.wall_normal)
+	var horizontal := _before_wall_collision(velocity, normal)
+	_state = State.WALL_RUN
+	_slide_released = false
+	_wall_normal = normal
+	_wall_direction = _along_wall(horizontal, normal).normalized()
+	var vertical := maxf(velocity.y, -_tuning.wall_run_max_entry_fall)
+	return _wall_direction * horizontal.length() + Vector3.UP * vertical
+
+
+## True if a Wall-run goes on: still in the air, still touching a wall, and fast enough.
+func _wall_run_continues(grounded: bool, contact: Contact, velocity: Vector3) -> bool:
+	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
+		return false
+	return velocity.dot(_wall_direction) >= _tuning.wall_run_end_speed
+
+
+## A Wall-run arcs under reduced gravity and slows gently along the wall. Input plays no part.
+func _wall_run(velocity: Vector3, delta: float) -> Vector3:
+	var speed := maxf(velocity.dot(_wall_direction) - _tuning.wall_run_slowdown * delta, 0.0)
+	var vertical := velocity.y - _tuning.gravity * _tuning.wall_run_gravity_scale * delta
+	return _wall_direction * speed + Vector3.UP * vertical
+
+
+## True if a surface with [param normal] is near enough vertical to be a wall.
+func _is_wall(normal: Vector3) -> bool:
+	if Vector2(normal.x, normal.z).is_zero_approx():
+		return false
+	return absf(normal.normalized().y) <= sin(deg_to_rad(_tuning.wall_max_tilt))
+
+
+## Horizontal velocity as it was before the engine's collision with the wall of [param normal]
+## took away the speed going into it: the speed into the wall is whichever of [param velocity]
+## and the last step's velocity goes into it more.
+func _before_wall_collision(velocity: Vector3, normal: Vector3) -> Vector3:
+	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
+	var into := minf(minf(horizontal.dot(normal), _last_velocity.dot(normal)), 0.0)
+	return _along_wall(horizontal, normal) + normal * into
+
+
+## The part of [param horizontal] along a wall with horizontal unit [param normal].
+func _along_wall(horizontal: Vector3, normal: Vector3) -> Vector3:
+	return horizontal - normal * horizontal.dot(normal)
+
+
+func _horizontal_unit(vector: Vector3) -> Vector3:
+	return Vector3(vector.x, 0.0, vector.z).normalized()
+
+
 func _go_airborne() -> void:
 	_state = State.AIR
 	_slide_released = false
@@ -305,9 +405,27 @@ class Contact:
 	## The standing body fits where the Runner is: always true while it stands; while it is low,
 	## whether it could stand up here.
 	var headroom: bool
+	## The body touches a surface that may be a wall; RunnerMovement decides whether it is near
+	## enough vertical to run.
+	var on_wall: bool
+	## That surface's normal; ignored when [member on_wall] is false.
+	var wall_normal: Vector3
+	## Tells walls apart: the same wall always has the same identity. Ignored when
+	## [member on_wall] is false.
+	var wall_id: int
 
 
-	func _init(p_on_floor: bool, p_floor_normal := Vector3.UP, p_headroom := true) -> void:
+	func _init(
+		p_on_floor: bool,
+		p_floor_normal := Vector3.UP,
+		p_headroom := true,
+		p_on_wall := false,
+		p_wall_normal := Vector3.ZERO,
+		p_wall_id := 0,
+	) -> void:
 		on_floor = p_on_floor
 		floor_normal = p_floor_normal
 		headroom = p_headroom
+		on_wall = p_on_wall
+		wall_normal = p_wall_normal
+		wall_id = p_wall_id
