@@ -1,0 +1,60 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Read pinned Godot version
+        id: godot
+        run: echo "version=$(cat .godot-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Godot and dev tools
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/godot
+            .tools
+          key: tools-${{ runner.os }}-${{ steps.godot.outputs.version }}-${{ hashFiles('tools/check.py') }}
+
+      - name: Install Godot ${{ steps.godot.outputs.version }}
+        env:
+          GODOT_VERSION: ${{ steps.godot.outputs.version }}
+        run: |
+          binary="$HOME/godot/Godot_v${GODOT_VERSION}_linux.x86_64"
+          if [ ! -x "$binary" ]; then
+            mkdir -p "$HOME/godot"
+            curl -fsSL -o /tmp/godot.zip \
+              "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}/Godot_v${GODOT_VERSION}_linux.x86_64.zip"
+            unzip -q /tmp/godot.zip -d "$HOME/godot"
+          fi
+          echo "GODOT_BIN=$binary" >> "$GITHUB_ENV"
+
+      - name: Run all checks
+        run: python tools/check.py
+
+      - name: Upload test report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: gdunit-report
+          path: reports/
+          if-no-files-found: ignore

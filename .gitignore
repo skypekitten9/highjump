@@ -1,3 +1,15 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+
+# Local environment (see .env.example)
+.env
+
+# Dev tooling downloaded by tools/check.py
+/.tools/
+
+# gdUnit4 test reports
+/reports/
+
+# Python
+__pycache__/
