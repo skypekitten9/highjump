@@ -53,6 +53,16 @@ func test_moving_the_free_mouse_does_not_turn_the_camera() -> void:
 	assert_bool(camera.is_equal_approx(facing)).is_true()
 
 
+## Creating a Runner leaves the mouse mode as it was: whatever holds the Runner owns capture. The
+## headless display server ignores mouse modes (setting one reads back as visible), so this
+## checks that the Runner script never assigns one.
+func test_the_runner_never_sets_the_mouse_mode() -> void:
+	var source := (load("res://runner/runner.gd") as GDScript).source_code
+	var assigns_mouse_mode := RegEx.create_from_string(r"mouse_mode\s*=[^=]")
+
+	assert_object(assigns_mouse_mode.search(source)).is_null()
+
+
 func test_runner_placed_above_the_floor_falls_and_lands() -> void:
 	var world := _world_with_floor()
 	var runner: Runner = RunnerScene.instantiate()

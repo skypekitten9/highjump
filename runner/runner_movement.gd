@@ -43,41 +43,49 @@ func _init(tuning: RunnerTuning) -> void:
 ## Returns the Runner's velocity for this physics frame.
 func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> Vector3:
 	_elapsed += delta
-	var wish := intent.move_direction
-	var crouch_held := intent.crouch_held
-	var headroom := contact.headroom
-	var floor_normal := contact.floor_normal
-	var grounded := _is_grounded(velocity, contact.on_floor, floor_normal)
+	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	var vertical: float
 	if grounded:
-		horizontal = _update_ground_state(horizontal, crouch_held, headroom)
+		horizontal = _update_ground_state(horizontal, intent.crouch_held, contact.headroom)
 		match _state:
 			State.SLIDE:
-				horizontal = _slide_horizontal(horizontal, wish, floor_normal, delta)
-				_end_slide_if_slow(horizontal.length(), headroom)
+				horizontal = _slide_horizontal(
+					horizontal,
+					intent.move_direction,
+					contact.floor_normal,
+					delta,
+				)
+				_end_slide_if_slow(horizontal.length(), contact.headroom)
 			State.CROUCH:
-				horizontal = _ground_horizontal(horizontal, wish, _tuning.crouch_speed, delta)
+				horizontal = _ground_horizontal(
+					horizontal,
+					intent.move_direction,
+					_tuning.crouch_speed,
+					delta,
+				)
 			_:
-				horizontal = _ground_horizontal(horizontal, wish, _tuning.run_speed, delta)
-		# Keep velocity in the floor plane (v . n = 0) without changing horizontal speed.
-		vertical = (
-			-(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
-		)
+				horizontal = _ground_horizontal(
+					horizontal,
+					intent.move_direction,
+					_tuning.run_speed,
+					delta,
+				)
+		vertical = _along_floor(horizontal, contact.floor_normal)
 	else:
 		_go_airborne()
-		horizontal = _air_horizontal(horizontal, wish, delta)
+		horizontal = _air_horizontal(horizontal, intent.move_direction, delta)
 		vertical = velocity.y - _tuning.gravity * delta
 	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
 		vertical = maxf(vertical, sqrt(2.0 * _tuning.gravity * _tuning.jump_height))
 		clear_jump_timers()
 		grounded = false
 		_go_airborne()
-	_last_floor_normal = floor_normal if grounded else Vector3.ZERO
+	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
 	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
 	# stand, even in the air, so it never stands up into a ceiling.
-	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not headroom)
+	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
 	return Vector3(horizontal.x, vertical, horizontal.z)
 
 
@@ -188,12 +196,12 @@ func _start_slide(horizontal: Vector3) -> Vector3:
 ## (see docs/adr/0004).
 func _slide_horizontal(
 	horizontal: Vector3,
-	wish: Vector3,
+	move_direction: Vector3,
 	floor_normal: Vector3,
 	delta: float,
 ) -> Vector3:
 	var speed_before := horizontal.length()
-	horizontal = _steer_slide(horizontal, wish, delta)
+	horizontal = _steer_slide(horizontal, move_direction, delta)
 	horizontal = _slope_slide(horizontal, floor_normal, delta)
 	if _slide_released:
 		# Holding crouch is the deliberate choice to keep gaining; released, slopes only slow it.
@@ -214,14 +222,14 @@ func _slope_slide(horizontal: Vector3, floor_normal: Vector3, delta: float) -> V
 	return horizontal + downhill * _tuning.gravity * _tuning.slope_gain * delta
 
 
-## Turns toward the sideways part of [param wish] at up to the slide turn rate, scaled by how
-## far sideways the input points. Speed is unchanged.
-func _steer_slide(horizontal: Vector3, wish: Vector3, delta: float) -> Vector3:
+## Turns toward the sideways part of [param move_direction] at up to the slide turn rate, scaled
+## by how far sideways the input points. Speed is unchanged.
+func _steer_slide(horizontal: Vector3, move_direction: Vector3, delta: float) -> Vector3:
 	if horizontal.is_zero_approx():
 		return horizontal
 	var heading := horizontal.normalized()
 	# Positive when the input points left of the heading (a turn about +Y).
-	var sideways := heading.cross(wish).y
+	var sideways := heading.cross(move_direction).y
 	return horizontal.rotated(Vector3.UP, sideways * _tuning.slide_turn_rate * delta)
 
 
@@ -234,6 +242,12 @@ func _end_slide_if_slow(speed: float, headroom: bool) -> void:
 		_state = State.RUN
 
 
+## Vertical speed that keeps velocity in the floor plane (v . n = 0) without changing
+## horizontal speed.
+func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
+	return -(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
+
+
 func _go_airborne() -> void:
 	_state = State.AIR
 	_slide_released = false
@@ -241,25 +255,25 @@ func _go_airborne() -> void:
 
 func _ground_horizontal(
 	horizontal: Vector3,
-	wish: Vector3,
+	move_direction: Vector3,
 	max_speed: float,
 	delta: float,
 ) -> Vector3:
-	if wish.is_zero_approx():
+	if move_direction.is_zero_approx():
 		return horizontal.move_toward(Vector3.ZERO, _tuning.ground_friction * delta)
 	# Speed above the state's top speed (Run or Crouch) fades gradually; the allowed speed
 	# never drops below it.
 	var limit := maxf(max_speed, horizontal.length() - _tuning.overspeed_decay * delta)
-	var result := horizontal.move_toward(wish * limit, _tuning.ground_accel * delta)
+	var result := horizontal.move_toward(move_direction * limit, _tuning.ground_accel * delta)
 	return result.limit_length(limit)
 
 
 ## No drag in the air. Steering can turn speed above Run speed but never add to it.
-func _air_horizontal(horizontal: Vector3, wish: Vector3, delta: float) -> Vector3:
-	if wish.is_zero_approx():
+func _air_horizontal(horizontal: Vector3, move_direction: Vector3, delta: float) -> Vector3:
+	if move_direction.is_zero_approx():
 		return horizontal
 	var limit := maxf(_tuning.run_speed, horizontal.length())
-	return (horizontal + wish * _tuning.air_accel * delta).limit_length(limit)
+	return (horizontal + move_direction * _tuning.air_accel * delta).limit_length(limit)
 
 
 ## What the Player asks the Runner to do this physics frame.
@@ -288,7 +302,8 @@ class Contact:
 	var on_floor: bool
 	## The floor's normal; ignored when [member on_floor] is false.
 	var floor_normal: Vector3
-	## There is room for the standing body where the Runner is, whatever its posture now.
+	## The standing body fits where the Runner is: always true while it stands; while it is low,
+	## whether it could stand up here.
 	var headroom: bool
 
 

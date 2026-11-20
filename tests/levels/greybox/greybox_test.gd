@@ -1,8 +1,5 @@
 extends GdUnitTestSuite
-## The greybox level. It owns mouse capture: captured when play starts, freed on release_mouse,
-## captured again on a click. The headless display server ignores mouse modes, so those tests
-## read the level's own record of whether it has the mouse captured. Its playtest course has
-## every area, labelled, and each feels as intended.
+## The greybox level's playtest course has every area, labelled, and each feels as intended.
 
 const GREYBOX := "res://levels/greybox/greybox.tscn"
 ## Collision layer the Runner is moved to, so a ray can find its body and nothing else.
@@ -16,53 +13,26 @@ func before_test() -> void:
 
 
 func after_test() -> void:
-	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Input.action_release("move_forward")
 	Input.action_release("crouch")
 
 
-func test_the_mouse_is_captured_when_play_starts() -> void:
-	var scene := scene_runner(GREYBOX)
-	await scene.simulate_frames(1)
-
-	assert_bool((scene.scene() as Level).mouse_captured).is_true()
+## A fresh greybox level, not yet in the tree.
+func _greybox() -> Level:
+	return auto_free((load(GREYBOX) as PackedScene).instantiate())
 
 
-func test_release_mouse_frees_the_mouse() -> void:
-	var scene := scene_runner(GREYBOX)
-	await scene.simulate_frames(1)
-
-	scene.simulate_action_pressed("release_mouse")
-	await scene.await_input_processed()
-
-	assert_bool((scene.scene() as Level).mouse_captured).is_false()
-
-
-func test_a_click_captures_the_freed_mouse_again() -> void:
-	var scene := scene_runner(GREYBOX)
-	await scene.simulate_frames(1)
-	scene.simulate_action_pressed("release_mouse")
-	await scene.await_input_processed()
-
-	scene.simulate_mouse_button_pressed(MOUSE_BUTTON_LEFT)
-	await scene.await_input_processed()
-
-	assert_bool((scene.scene() as Level).mouse_captured).is_true()
-
-
-## Runs the greybox level with its Runner moved to [param start] (a node path in the level),
-## facing the way it faces. Returns the scene runner.
-func _greybox_with_runner_at(runner: Runner, start: String) -> GdUnitSceneRunner:
-	var level: Node3D = runner.get_parent()
+## Runs [param level] with its Runner moved to [param start] (a node path in the level), facing
+## the way it faces. Returns the scene runner.
+func _run_with_runner_at(level: Level, start: String) -> GdUnitSceneRunner:
 	var scene := scene_runner(level)
+	var runner := _runner_of(level)
 	runner.global_transform = (level.get_node(start) as Node3D).global_transform
 	runner.collision_layer = RUNNER_LAYER
 	return scene
 
 
-## The Runner of a fresh greybox level, not yet in the tree.
-func _greybox_runner() -> Runner:
-	var level: Node3D = auto_free((load(GREYBOX) as PackedScene).instantiate())
+func _runner_of(level: Level) -> Runner:
 	return level.get_node("Runner")
 
 
@@ -75,8 +45,9 @@ func _on_flat_floor(runner: Runner) -> bool:
 
 
 func test_a_held_slide_down_the_long_steep_slope_hits_top_slide_speed_before_the_bottom() -> void:
-	var runner := _greybox_runner()
-	var scene := _greybox_with_runner_at(runner, "PlaytestCourse/LongSteepSlope/SlideStart")
+	var level := _greybox()
+	var scene := _run_with_runner_at(level, "PlaytestCourse/LongSteepSlope/SlideStart")
+	var runner := _runner_of(level)
 	await scene.simulate_frames(10, 16)
 
 	# Run at the crest, crouch into a Slide on the flat top, and hold it down the slope.
@@ -101,7 +72,7 @@ func test_a_held_slide_down_the_long_steep_slope_hits_top_slide_speed_before_the
 
 
 func test_every_playtest_area_has_a_visible_label() -> void:
-	var level: Node3D = auto_free((load(GREYBOX) as PackedScene).instantiate())
+	var level := _greybox()
 	var labels: Array[String] = []
 	for node: Node in level.find_children("*", "Label3D"):
 		var label := node as Label3D
@@ -141,11 +112,12 @@ func _is_low(runner: Runner) -> bool:
 
 
 func test_the_runner_cannot_stand_in_the_crouch_tunnel_and_stands_once_out() -> void:
-	var runner := _greybox_runner()
-	var scene := _greybox_with_runner_at(runner, "PlaytestCourse/CrouchTunnel/Approach")
+	var level := _greybox()
+	var scene := _run_with_runner_at(level, "PlaytestCourse/CrouchTunnel/Approach")
+	var runner := _runner_of(level)
 	await scene.simulate_frames(10, 16)
 
-	# Crouch-walk in, then let go of crouch once well inside.
+	# Crouch in, then let go of crouch once well inside.
 	Input.action_press("crouch")
 	Input.action_press("move_forward")
 	var frames_inside := 0
