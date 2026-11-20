@@ -308,12 +308,23 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 	return -(horizontal.x * floor_normal.x + horizontal.z * floor_normal.z) / floor_normal.y
 
 
+## True if the Runner is in the air touching a surface near enough vertical to be a wall.
+func _touches_wall_in_air(contact: Contact, grounded: bool) -> bool:
+	return not grounded and contact.on_wall and is_wall(contact.wall_normal)
+
+
+## How head-on [param direction] meets a wall with horizontal unit [param normal], rad: 0 along
+## it or away from it, PI / 2 straight into it.
+func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
+	return asin(clampf(-direction.normalized().dot(normal), 0.0, 1.0))
+
+
 ## True if the Runner meets a wall in the air that it can run: fast enough, at a glancing enough
 ## angle, while the Player holds a direction into or along it, and it isn't the wall last run
 ## since the Runner landed. Speed is measured before the collision took away the speed going
 ## into the wall.
 func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
-	if grounded or not contact.on_wall or not is_wall(contact.wall_normal):
+	if not _touches_wall_in_air(contact, grounded):
 		return false
 	if _wall_locked and contact.wall_id == _locked_wall_id:
 		return false
@@ -322,8 +333,7 @@ func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, groun
 	var speed := horizontal.length()
 	if speed < _tuning.wall_run_entry_speed or is_zero_approx(speed):
 		return false
-	var head_on := asin(clampf(-horizontal.dot(normal) / speed, 0.0, 1.0))
-	if head_on > deg_to_rad(_tuning.wall_run_max_entry_angle):
+	if _head_on_angle(horizontal, normal) > deg_to_rad(_tuning.wall_run_max_entry_angle):
 		return false
 	if _along_wall(horizontal, normal).is_zero_approx():
 		return false
@@ -360,7 +370,7 @@ func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
 ## goes on only onto a wall blocking the run within the maximum entry angle (an inside corner);
 ## a sharper turn away is an outside corner.
 func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> Vector3:
-	if grounded or not contact.on_wall or not is_wall(contact.wall_normal):
+	if not _touches_wall_in_air(contact, grounded):
 		return Vector3.ZERO
 	var normal := _horizontal_unit(contact.wall_normal)
 	var speed := _before_wall_collision(velocity, normal).dot(_wall_direction)
@@ -368,7 +378,7 @@ func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> V
 		return Vector3.ZERO
 	if _wall_normal.angle_to(normal) <= deg_to_rad(_tuning.wall_run_follow_angle):
 		return normal
-	var head_on := asin(clampf(-_wall_direction.dot(normal), 0.0, 1.0))
+	var head_on := _head_on_angle(_wall_direction, normal)
 	if head_on > 0.0 and head_on <= deg_to_rad(_tuning.wall_run_max_entry_angle):
 		return normal
 	return Vector3.ZERO
