@@ -17,15 +17,15 @@ The fastest the **Runner** can move from the **Player**'s input alone; other mov
 _Avoid_: Max speed, walk speed, sprint speed
 
 **Crouch**:
-The **Runner** moving low and slow; a **Slide** that loses its speed becomes a Crouch.
+The **Runner** moving low and slow.
 _Avoid_: Duck, crouch-walk
 
 **Slide**:
-The **Runner** gliding low along the ground on its momentum, entered by crouching at or above the **Slide entry speed**. It gains speed downhill while the **Player** keeps crouching and loses it on flat ground and uphill. Held, it becomes a **Crouch** once its speed runs out; released, it becomes a **Released Slide**.
+The **Runner** gliding low along the ground on its momentum, entered by crouching at or above the **Slide entry speed**. It gains speed downhill while the **Player** keeps crouching and loses it on flat ground and uphill.
 _Avoid_: Power slide, crouch-slide
 
 **Slide entry speed**:
-The speed at or above which crouching on the ground, or landing with crouch held, begins a **Slide** rather than a **Crouch**.
+The speed at or above which crouching on the ground begins a **Slide** rather than a **Crouch**.
 _Avoid_: Slide threshold, minimum slide speed
 
 **Released Slide**:
@@ -37,11 +37,11 @@ Landing with crouch held at or above the **Slide entry speed**, so the **Runner*
 _Avoid_: Bunny hop, landing slide
 
 **Top slide speed**:
-The fastest a **Slide** can become by going downhill; a Slide entered faster keeps its speed.
+The fastest a **Slide** can become by going downhill.
 _Avoid_: Max slide speed, slide cap
 
 **Slide boost**:
-The burst of speed the **Runner** gets when a **Slide** begins, weakened if another Slide began shortly before. It never carries the Runner beyond a set speed above **Run speed**, so only slopes take a Slide faster.
+The burst of speed the **Runner** gets when a **Slide** begins.
 _Avoid_: Slide burst, dash
 
 **Vault**:

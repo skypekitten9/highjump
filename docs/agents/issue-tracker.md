@@ -30,6 +30,11 @@ GitHub shares one number space across issues and PRs, so a bare `#42` may be eit
 
 Create a GitHub issue.
 
+## Breaking a spec into tickets
+
+- The spec is its own parent issue; each ticket is a sub-issue of it (see **Make an issue a sub-issue of a parent**).
+- Tickets that touch the same files are chained with blocking links (see **Blocking** under **Wayfinding operations**), so they merge in order without conflicts.
+
 ## When a skill says "fetch the relevant ticket"
 
 Read it as in **Read an issue** above.
