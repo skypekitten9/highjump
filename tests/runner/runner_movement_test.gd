@@ -353,3 +353,114 @@ func test_crouching_at_slide_entry_speed_starts_a_slide_with_the_full_boost() ->
 	# One frame of slide friction already applied after the boost.
 	var boosted := _tuning.slide_entry_speed + _tuning.slide_boost
 	assert_float(_horizontal_speed(velocity)).is_equal_approx(boosted, 0.1)
+
+
+func test_crouching_below_slide_entry_speed_gives_a_crouch() -> void:
+	_run_past_the_boost_cooldown()
+	_crouch_step(FORWARD * (_tuning.slide_entry_speed - 0.1), FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+
+
+func test_a_slide_soon_after_the_last_one_began_gets_a_proportionally_smaller_boost() -> void:
+	_run_past_the_boost_cooldown()
+	var entry := FORWARD * _tuning.slide_entry_speed
+	_crouch_step(entry, FORWARD, true)
+	# Hop out of the Slide and land, half the cooldown after it began.
+	var frames := roundi(_tuning.slide_boost_cooldown / 2.0 / DELTA)
+	for frame: int in frames - 2:
+		_air_step(entry)
+	_crouch_step(entry, FORWARD, false)
+	var velocity := _crouch_step(entry, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	var half_boost := _tuning.slide_entry_speed + _tuning.slide_boost / 2.0
+	# Below Run speed, so one frame of slow-slide friction already applied after the boost.
+	var expected := half_boost - _tuning.slow_slide_friction * DELTA
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(expected, 0.05)
+
+
+func test_the_slide_boost_never_takes_speed_past_run_speed_plus_the_boost() -> void:
+	_run_past_the_boost_cooldown()
+	var cap := _run_speed() + _tuning.slide_boost
+	var velocity := _crouch_step(FORWARD * (cap - _tuning.slide_boost / 2.0), FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(cap, 0.1)
+
+
+func test_the_slide_boost_never_slows_a_slide_entered_faster_than_its_cap() -> void:
+	_run_past_the_boost_cooldown()
+	var speed := _run_speed() + _tuning.slide_boost + OVERSPEED
+	var velocity := _crouch_step(FORWARD * speed, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(speed, 0.1)
+
+
+## Starts a Slide at [param speed] with crouch held, the boost fully recharged.
+func _start_slide(speed: float) -> Vector3:
+	_run_past_the_boost_cooldown()
+	var velocity := _crouch_step(FORWARD * speed, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	return velocity
+
+
+func test_a_flat_slide_above_run_speed_fades_at_slide_friction() -> void:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var start := _horizontal_speed(velocity)
+	for frame: int in 60:
+		velocity = _crouch_step(velocity, Vector3.ZERO, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(start - _tuning.slide_friction, 0.01)
+
+
+func test_a_flat_slide_below_run_speed_fades_at_slow_slide_friction_then_becomes_a_crouch() -> void:
+	var velocity := _start_slide(_tuning.slide_entry_speed)
+	var frames := 0
+	while _horizontal_speed(velocity) >= _run_speed() and frames < 600:
+		velocity = _crouch_step(velocity, Vector3.ZERO, true)
+		frames += 1
+	var below_run := _horizontal_speed(velocity)
+	for frame: int in 6:
+		velocity = _crouch_step(velocity, Vector3.ZERO, true)
+	var expected := below_run - _tuning.slow_slide_friction * 6 * DELTA
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(expected, 0.01)
+	while _movement.state() == RunnerMovement.State.SLIDE and frames < 600:
+		assert_float(_horizontal_speed(velocity)).is_greater_equal(_tuning.slide_to_crouch_speed)
+		velocity = _crouch_step(velocity, Vector3.ZERO, true)
+		frames += 1
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+	assert_float(_horizontal_speed(velocity)).is_less(_tuning.slide_to_crouch_speed + 0.001)
+
+
+## Slides fast for a second holding [param wish] and returns the final velocity.
+func _slide_for_a_second(wish: Vector3) -> Vector3:
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	for frame: int in 60:
+		velocity = _crouch_step(velocity, wish, true)
+	return velocity
+
+
+func test_sideways_input_turns_a_slide_by_at_most_the_turn_rate_without_changing_speed() -> void:
+	var straight := _slide_for_a_second(Vector3.ZERO)
+	_movement = RunnerMovement.new()
+	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
+	var max_turn := _tuning.slide_turn_rate * DELTA
+	for frame: int in 60:
+		var before := Vector3(velocity.x, 0.0, velocity.z)
+		velocity = _crouch_step(velocity, Vector3.RIGHT, true)
+		var turn := before.angle_to(Vector3(velocity.x, 0.0, velocity.z))
+		assert_float(turn).is_less_equal(max_turn + 0.0001)
+		# Input straight across the heading turns it at the full turn rate.
+		if frame == 0:
+			assert_float(turn).is_equal_approx(max_turn, 0.0001)
+	# Turned right, and by a good share of a second's turning.
+	assert_float(velocity.x).is_greater(0.0)
+	var angle := FORWARD.angle_to(Vector3(velocity.x, 0.0, velocity.z))
+	assert_float(angle).is_greater(_tuning.slide_turn_rate * 0.8)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_horizontal_speed(straight), 0.001)
+
+
+func test_forward_and_back_input_do_nothing_to_a_slide() -> void:
+	var straight := _slide_for_a_second(Vector3.ZERO)
+	for wish: Vector3 in [FORWARD, Vector3.BACK]:
+		_movement = RunnerMovement.new()
+		var velocity := _slide_for_a_second(wish)
+		assert_vector(velocity).is_equal_approx(straight, Vector3.ONE * 0.001)

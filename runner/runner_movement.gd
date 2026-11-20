@@ -56,7 +56,8 @@ func step(
 		horizontal = _update_ground_state(horizontal, crouch_held, can_stand, tuning)
 		match _state:
 			State.SLIDE:
-				horizontal = _slide_horizontal(horizontal, tuning, delta)
+				horizontal = _slide_horizontal(horizontal, wish, tuning, delta)
+				_end_slide_if_slow(horizontal.length(), tuning)
 			State.CROUCH:
 				horizontal = _ground_horizontal(
 					horizontal,
@@ -156,17 +157,56 @@ func _update_ground_state(
 	return horizontal
 
 
-## Starts a Slide with a boost scaled by how long ago the last Slide began.
+## Starts a Slide with a boost scaled by how long ago the last Slide began: none just after it,
+## full once the cooldown has passed.
 func _start_slide(horizontal: Vector3, tuning: RunnerTuning) -> Vector3:
+	var since_last := _time - _last_slide_start
+	var share := clampf(since_last / maxf(tuning.slide_boost_cooldown, 0.001), 0.0, 1.0)
 	_state = State.SLIDE
 	_last_slide_start = _time
 	var speed := horizontal.length()
-	var boosted := speed + tuning.slide_boost
+	# Capped, so landing into Slides again and again can't stack boosts; only slopes take a
+	# Slide faster. A Slide already past the cap is never slowed.
+	var cap := minf(tuning.run_speed + tuning.slide_boost, tuning.top_slide_speed)
+	var boosted := maxf(speed, minf(speed + tuning.slide_boost * share, cap))
 	return horizontal.normalized() * boosted
 
 
-func _slide_horizontal(horizontal: Vector3, tuning: RunnerTuning, delta: float) -> Vector3:
-	return horizontal.move_toward(Vector3.ZERO, tuning.slide_friction * delta)
+## A Slide glides on its momentum: slide friction above Run speed, and slow-slide friction below
+## it so a slow Slide dies quickly. Input only steers it, and only its sideways part: holding a
+## direction never adds or removes speed.
+func _slide_horizontal(
+	horizontal: Vector3,
+	wish: Vector3,
+	tuning: RunnerTuning,
+	delta: float,
+) -> Vector3:
+	horizontal = _steer_slide(horizontal, wish, tuning, delta)
+	var friction := tuning.slide_friction
+	if horizontal.length() < tuning.run_speed:
+		friction = tuning.slow_slide_friction
+	return horizontal.move_toward(Vector3.ZERO, friction * delta)
+
+
+## Turns toward the sideways part of [param wish] at up to the slide turn rate, scaled by how
+## far sideways the input points. Speed is unchanged.
+func _steer_slide(
+	horizontal: Vector3,
+	wish: Vector3,
+	tuning: RunnerTuning,
+	delta: float,
+) -> Vector3:
+	if horizontal.is_zero_approx():
+		return horizontal
+	var heading := horizontal.normalized()
+	# Positive when the input points left of the heading (a turn about +Y).
+	var sideways := heading.cross(wish).y
+	return horizontal.rotated(Vector3.UP, sideways * tuning.slide_turn_rate * delta)
+
+
+func _end_slide_if_slow(speed: float, tuning: RunnerTuning) -> void:
+	if speed < tuning.slide_to_crouch_speed:
+		_state = State.CROUCH
 
 
 func _ground_horizontal(
