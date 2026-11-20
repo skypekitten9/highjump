@@ -274,3 +274,55 @@ func test_a_crouched_mantle_lands_in_a_crouch_that_stands_once_there_is_headroom
 	_movement.step(_moving(FORWARD), RunnerMovement.Contact.new(true), velocity, DELTA)
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
 	assert_bool(_movement.is_low()).is_false()
+
+
+## On top of the ledge, touching its floor.
+func _on_top() -> RunnerMovement.Contact:
+	return RunnerMovement.Contact.new(true)
+
+
+## Mantles head-on onto the ledge, presses jump on the leap's second frame, and leaps on for
+## [param frames] more frames. Returns the last velocity.
+func _mantle_pressing_jump(frames: int) -> Vector3:
+	var velocity := _meet_ledge(_toward_ledge(12.0, 0.0))
+	var jump := RunnerMovement.Intent.new(FORWARD, true)
+	velocity = _movement.step(jump, _in_air(), velocity, DELTA)
+	for frame: int in frames:
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	return velocity
+
+
+func test_a_jump_pressed_early_in_a_mantle_fires_on_landing_however_long_it_lasts() -> void:
+	# 12 frames is longer than the 0.1 s jump buffer time.
+	var velocity := _mantle_pressing_jump(12)
+	assert_bool(_is_mantling()).is_true()
+	velocity.y = 0.0
+	velocity = _movement.step(_moving(FORWARD), _on_top(), velocity, DELTA)
+	# A jump 1.2 m high under 20 m/s² launches at 6.93 m/s.
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	assert_float(velocity.y).is_equal_approx(6.9282, 0.0001)
+
+
+func test_a_jump_pressed_in_a_mantle_that_falls_back_does_not_fire_in_mid_air() -> void:
+	# Leaves the floor straight into a Mantle, so the floor's coyote time is still running.
+	_movement.step(_moving(FORWARD), _on_top(), Vector3.ZERO, DELTA)
+	_movement.step(_moving(FORWARD), _at_ledge(), Vector3.ZERO, DELTA)
+	assert_bool(_is_mantling()).is_true()
+	# Knocked back down, it falls below the top as jump is pressed.
+	var jump := RunnerMovement.Intent.new(FORWARD, true)
+	var velocity := _movement.step(jump, _in_air(), FORWARD * 9.0 + Vector3.DOWN, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	assert_float(velocity.y).is_less(0.0)
+
+
+func test_landing_from_a_mantle_with_crouch_held_slide_hops_keeping_its_speed() -> void:
+	var velocity := _meet_ledge(_toward_ledge(12.0, 0.0))
+	for frame: int in 5:
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	velocity.y = 0.0
+	var crouch := RunnerMovement.Intent.new(FORWARD, false, true)
+	velocity = _movement.step(crouch, _on_top(), velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	# 12 m/s is past the 11 m/s Slide boost cap, so it is kept, less one frame of the 4 m/s²
+	# slide friction.
+	assert_float(_horizontal(velocity).length()).is_equal_approx(12.0 - 4.0 / 60.0, 0.0001)

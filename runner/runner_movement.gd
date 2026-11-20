@@ -230,7 +230,9 @@ func _finish(velocity: Vector3, grounded: bool, contact: Contact) -> Vector3:
 
 
 func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> void:
-	_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
+	# A jump waiting during a Mantle waits for its landing, however long it lasts.
+	if _state != State.MANTLE:
+		_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
 	if jump_pressed:
 		_jump_buffer_timer = _tuning.jump_buffer_time
 	if grounded:
@@ -395,9 +397,12 @@ func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
 ## peak the Mantle clearance above the top under the leap gravity. Horizontal velocity is fixed
 ## for the leap: the speed along the face, plus a part into it of at least the Mantle inward
 ## speed, at all the speed there was before the face took any, and at least Run speed (see
-## docs/adr/0007). A top with room only to crouch takes the body low for the whole leap.
+## docs/adr/0007). A top with room only to crouch takes the body low for the whole leap. Any
+## coyote time is forgotten, so a jump waiting for the landing never fires in mid-air if the
+## Mantle falls back.
 func _start_mantle(contact: Contact, velocity: Vector3) -> Vector3:
 	_state = State.MANTLE
+	_coyote_timer = 0.0
 	_mantle_low = contact.ledge.clear_height < _standing_height
 	_slide_released = false
 	_mantle_time = 0.0
