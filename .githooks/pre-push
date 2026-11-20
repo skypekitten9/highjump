@@ -2,6 +2,8 @@
 # Enabled with: git config core.hooksPath .githooks
 # GitHub branch protection isn't available on this plan, so block direct pushes
 # to main locally. Work on a branch and merge through a PR once CI passes.
+# Then run the full check (version, format, lint, all tests) so failures show up
+# before CI does.
 # Override in an emergency with: git push --no-verify
 
 while read -r _local_ref _local_sha remote_ref _remote_sha; do
@@ -10,4 +12,5 @@ while read -r _local_ref _local_sha remote_ref _remote_sha; do
 		exit 1
 	fi
 done
-exit 0
+
+exec python tools/check.py

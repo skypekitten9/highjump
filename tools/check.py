@@ -1,9 +1,9 @@
 """Run every check for this repo: Godot version, format, lint, tests.
 
 Usage:
-    python tools/check.py           check everything (what CI runs)
+    python tools/check.py           check everything (what CI and the pre-push hook run)
     python tools/check.py --fix     format GDScript in place, then check everything
-    python tools/check.py --staged  check format and lint of staged GDScript (the git hook)
+    python tools/check.py --staged  check format and lint of staged GDScript (the pre-commit hook)
 """
 
 from __future__ import annotations
@@ -251,8 +251,8 @@ def remind_about_hook() -> None:
     hooks_path = run(["git", "config", "--get", "core.hooksPath"], capture=True).stdout.strip()
     if hooks_path != ".githooks":
         print(
-            "\nNote: the pre-commit hook is not enabled. "
-            "Run `git config core.hooksPath .githooks` once to enable it."
+            "\nNote: the git hooks (pre-commit, pre-push) are not enabled. "
+            "Run `git config core.hooksPath .githooks` once to enable them."
         )
 
 
