@@ -1,7 +1,10 @@
 extends GdUnitTestSuite
-## The greybox level's playtest course: each area is there, labelled, and feels as intended.
+## The greybox level. It owns mouse capture: captured when play starts, freed on release_mouse,
+## captured again on a click. The headless display server ignores mouse modes, so those tests
+## read the level's own record of whether it has the mouse captured. Its playtest course has
+## every area, labelled, and each feels as intended.
 
-const GreyboxScene := preload("res://levels/greybox/greybox.tscn")
+const GREYBOX := "res://levels/greybox/greybox.tscn"
 ## Collision layer the Runner is moved to, so a ray can find its body and nothing else.
 const RUNNER_LAYER := 2
 
@@ -13,8 +16,38 @@ func before_test() -> void:
 
 
 func after_test() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	Input.action_release("move_forward")
 	Input.action_release("crouch")
+
+
+func test_the_mouse_is_captured_when_play_starts() -> void:
+	var scene := scene_runner(GREYBOX)
+	await scene.simulate_frames(1)
+
+	assert_bool((scene.scene() as Level).mouse_captured).is_true()
+
+
+func test_release_mouse_frees_the_mouse() -> void:
+	var scene := scene_runner(GREYBOX)
+	await scene.simulate_frames(1)
+
+	scene.simulate_action_pressed("release_mouse")
+	await scene.await_input_processed()
+
+	assert_bool((scene.scene() as Level).mouse_captured).is_false()
+
+
+func test_a_click_captures_the_freed_mouse_again() -> void:
+	var scene := scene_runner(GREYBOX)
+	await scene.simulate_frames(1)
+	scene.simulate_action_pressed("release_mouse")
+	await scene.await_input_processed()
+
+	scene.simulate_mouse_button_pressed(MOUSE_BUTTON_LEFT)
+	await scene.await_input_processed()
+
+	assert_bool((scene.scene() as Level).mouse_captured).is_true()
 
 
 ## Runs the greybox level with its Runner moved to [param start] (a node path in the level),
@@ -29,7 +62,7 @@ func _greybox_with_runner_at(runner: Runner, start: String) -> GdUnitSceneRunner
 
 ## The Runner of a fresh greybox level, not yet in the tree.
 func _greybox_runner() -> Runner:
-	var level: Node3D = auto_free(GreyboxScene.instantiate())
+	var level: Node3D = auto_free((load(GREYBOX) as PackedScene).instantiate())
 	return level.get_node("Runner")
 
 
@@ -68,7 +101,7 @@ func test_a_held_slide_down_the_long_steep_slope_hits_top_slide_speed_before_the
 
 
 func test_every_playtest_area_has_a_visible_label() -> void:
-	var level: Node3D = auto_free(GreyboxScene.instantiate())
+	var level: Node3D = auto_free((load(GREYBOX) as PackedScene).instantiate())
 	var labels: Array[String] = []
 	for node: Node in level.find_children("*", "Label3D"):
 		var label := node as Label3D
