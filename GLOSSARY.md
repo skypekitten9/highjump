@@ -67,3 +67,11 @@ _Avoid_: Wall-run threshold, minimum wall speed
 **Top wall-run speed**:
 The fastest jumping from wall to wall can take the **Runner**; a Runner already faster keeps its speed.
 _Avoid_: Max wall speed, wall-run cap
+
+**Mantle**:
+The **Runner** leaping up onto a ledge: its jump carries on, lifted just enough to clear the edge, and is never cut short. It begins on its own when the Runner, in the air, meets a ledge within **Mantle reach** while the **Player** holds a direction into it, and there's room on top for at least a **Crouch**. During a **Wall-run**, holding a direction into the wall Mantles onto its top, and a ledge that could start either a Wall-run or a Mantle starts a Mantle. The Runner keeps all its horizontal speed, with speed into the wall turning to carry it over the top, and comes off at no less than **Run speed**. Landing on top ends the Mantle and is an ordinary landing.
+_Avoid_: Vault (that's the **Pole**), ledge grab, climb, edge vault
+
+**Mantle reach**:
+How far above the **Runner**'s feet a ledge can be and still be Mantled.
+_Avoid_: Mantle height, grab range
