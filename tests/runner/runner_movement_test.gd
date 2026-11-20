@@ -108,6 +108,29 @@ func test_a_floor_contact_while_moving_away_from_the_floor_does_not_ground_the_r
 	assert_float(velocity.y).is_equal_approx(5.0 - _tuning.gravity * DELTA, 0.001)
 
 
+func test_running_down_a_45_degree_ramp_stays_on_the_ground() -> void:
+	# The ramp descends toward +Z, so running back is running downhill.
+	var ramp := Vector3(0.0, 1.0, 1.0).normalized()
+	var velocity := Vector3.BACK * _run_speed()
+	for frame: int in 30:
+		# The engine's movement step zeroes vertical velocity going down a slope.
+		velocity.y = 0.0
+		velocity = _ground_step(velocity, Vector3.BACK, ramp)
+		# Grounded: velocity follows the ramp down instead of falling under gravity.
+		assert_float(velocity.dot(ramp)).is_equal_approx(0.0, 0.001)
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(_run_speed(), 0.001)
+
+
+func test_a_jump_off_a_downhill_ramp_is_not_grounded_on_the_next_floor_contact() -> void:
+	var ramp := Vector3(0.0, 1.0, 1.0).normalized()
+	var velocity := _ground_step(Vector3.BACK * _run_speed(), Vector3.BACK, ramp, true)
+	var take_off := velocity.y
+	assert_float(take_off).is_greater(0.0)
+	velocity = _ground_step(velocity, Vector3.BACK, ramp)
+	# Not snapped onto the ramp: gravity applied to the take-off speed instead.
+	assert_float(velocity.y).is_equal_approx(take_off - _tuning.gravity * DELTA, 0.001)
+
+
 func test_running_up_a_45_degree_ramp_onto_flat_ground_stays_on_the_ground() -> void:
 	var ramp := Vector3(0.0, 1.0, 1.0).normalized()
 	var velocity := Vector3.ZERO
