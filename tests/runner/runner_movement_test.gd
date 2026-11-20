@@ -6,6 +6,8 @@ const DELTA := 1.0 / 60.0
 const FORWARD := Vector3.FORWARD
 ## How far above Run speed the "faster than Run speed" cases start, m/s.
 const OVERSPEED := 5.0
+## Height of the Runner's standing body, m.
+const STANDING_HEIGHT := 1.8
 
 var _tuning: RunnerTuning
 var _movement: RunnerMovement
@@ -13,7 +15,7 @@ var _movement: RunnerMovement
 
 func before_test() -> void:
 	_tuning = load("res://runner/default_runner_tuning.tres")
-	_movement = RunnerMovement.new(_tuning)
+	_movement = RunnerMovement.new(_tuning, STANDING_HEIGHT)
 
 
 ## The Player holding [param direction], or no move input.
@@ -486,7 +488,7 @@ func _slide_for_a_second(wish: Vector3) -> Vector3:
 
 func test_sideways_input_turns_a_slide_by_at_most_the_turn_rate_without_changing_speed() -> void:
 	var straight := _slide_for_a_second(Vector3.ZERO)
-	_movement = RunnerMovement.new(_tuning)
+	_movement = RunnerMovement.new(_tuning, STANDING_HEIGHT)
 	var velocity := _start_slide(_run_speed() + _tuning.slide_boost + OVERSPEED)
 	var max_turn := _tuning.slide_turn_rate * DELTA
 	for frame: int in 60:
@@ -507,7 +509,7 @@ func test_sideways_input_turns_a_slide_by_at_most_the_turn_rate_without_changing
 func test_forward_and_back_input_do_nothing_to_a_slide() -> void:
 	var straight := _slide_for_a_second(Vector3.ZERO)
 	for wish: Vector3 in [FORWARD, Vector3.BACK]:
-		_movement = RunnerMovement.new(_tuning)
+		_movement = RunnerMovement.new(_tuning, STANDING_HEIGHT)
 		var velocity := _slide_for_a_second(wish)
 		assert_vector(velocity).is_equal_approx(straight, Vector3.ONE * 0.001)
 
@@ -680,7 +682,7 @@ func _land_crouching(speed: float) -> Vector3:
 
 func test_landing_crouched_at_slide_entry_speed_or_faster_slides_losing_no_speed() -> void:
 	for speed: float in [_tuning.slide_entry_speed, _run_speed() + _tuning.slide_boost + OVERSPEED]:
-		_movement = RunnerMovement.new(_tuning)
+		_movement = RunnerMovement.new(_tuning, STANDING_HEIGHT)
 		var velocity := _land_crouching(speed)
 		assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
 		# At most one frame of slide friction (the faster of the two tiers) after landing.

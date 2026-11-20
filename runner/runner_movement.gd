@@ -75,9 +75,8 @@ var _mantle_low := false
 var _mantle_locked := false
 
 
-## [param standing_height] is the height of the Runner's standing body, m. Left at INF, no
-## ledge has room to stand, so every Mantle is a crouched one.
-func _init(tuning: RunnerTuning, standing_height := INF) -> void:
+## [param standing_height] is the height of the Runner's standing body, m.
+func _init(tuning: RunnerTuning, standing_height: float) -> void:
 	_tuning = tuning
 	_standing_height = standing_height
 
