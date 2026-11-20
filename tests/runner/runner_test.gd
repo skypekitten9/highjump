@@ -437,6 +437,29 @@ func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
 	assert_bool(runner.is_wall_running()).is_false()
 
 
+func test_a_wall_run_keeps_to_the_wall_on_frames_the_body_does_not_touch_it() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	# Running straight along the wall, the body's move mostly doesn't collide with it; the Runner
+	# finds the wall by looking for it instead.
+	var running_frames := 0
+	var untouched_frames := 0
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if not runner.is_wall_running():
+			if running_frames > 0:
+				break
+			continue
+		running_frames += 1
+		if runner.get_slide_collision_count() == 0:
+			untouched_frames += 1
+
+	assert_int(running_frames).is_greater(30)
+	assert_int(untouched_frames).is_greater(running_frames / 2)
+
+
 func test_landing_on_a_ramp_during_a_wall_run_ends_it_on_the_ramp() -> void:
 	var world := _world_with_wall()
 	# Rising 20 degrees along the wall from z = -6, under where the run comes down.
