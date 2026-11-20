@@ -14,7 +14,9 @@ func before_test() -> void:
 
 func after_test() -> void:
 	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	Input.action_release("crouch")
+	Input.action_release("jump")
 
 
 ## A fresh greybox level, not yet in the tree.
@@ -142,3 +144,45 @@ func test_the_runner_cannot_stand_in_the_crouch_tunnel_and_stands_once_out() -> 
 			break
 	assert_bool(stood_up).is_true()
 	assert_bool(_ceiling_overhead(runner)).is_false()
+
+
+func test_wall_jumps_holding_forward_zig_zag_across_the_wall_run_gap_gaining_speed() -> void:
+	var level := _greybox()
+	var scene := _run_with_runner_at(level, "PlaytestCourse/WallRun/SlideStart")
+	var runner := _runner_of(level)
+	var area := level.get_node("PlaytestCourse/WallRun") as Node3D
+	# On the floor midway between the walls, just before they begin, facing along them.
+	runner.global_position = area.to_global(Vector3(20.0, 0.0, 0.0))
+	await scene.simulate_frames(10, 16)
+
+	# Run up to speed, then jump toward the right-hand wall.
+	Input.action_press("move_forward")
+	await scene.simulate_frames(6, 16)
+	Input.action_press("move_right")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	# Wall-jump two frames into every Wall-run, holding forward only.
+	var speeds: Array[float] = []
+	var sides: Array[float] = []
+	var running := false
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running() and not running:
+			Input.action_release("move_right")
+			speeds.append(_horizontal_speed(runner))
+			sides.append(signf(area.to_local(runner.global_position).z))
+			await scene.simulate_frames(2, 16)
+			Input.action_press("jump")
+			await scene.simulate_frames(1, 16)
+			Input.action_release("jump")
+		running = runner.is_wall_running()
+		if runner.is_on_floor() and not speeds.is_empty():
+			break
+
+	# The first wall and at least three crossings, each to the other wall and faster.
+	assert_int(speeds.size()).is_greater_equal(4)
+	for index: int in range(1, speeds.size()):
+		assert_float(sides[index]).is_equal(-sides[index - 1])
+		assert_float(speeds[index]).is_greater(speeds[index - 1])
