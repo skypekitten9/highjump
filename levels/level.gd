@@ -1,8 +1,7 @@
 class_name Level
 extends Node3D
 ## A place the Player plays in. Owns mouse capture while play runs: captures the mouse when
-## play starts, frees it on release_mouse and captures it again on a click. A pause menu or UI
-## can take capture over by setting [member mouse_captured].
+## play starts, frees it on release_mouse and captures it again on a click.
 
 ## Whether this level has the mouse captured. The Runner turns the camera only while it is.
 var mouse_captured := false:
