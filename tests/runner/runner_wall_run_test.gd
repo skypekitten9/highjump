@@ -13,6 +13,8 @@ const OPPOSITE_NORMAL := Vector3.RIGHT
 const FAST := 10.0
 ## A glancing approach, degrees from parallel to the wall.
 const GLANCING := 20.0
+## Height of the Runner's standing body, m.
+const STANDING_HEIGHT := 1.8
 
 var _tuning: RunnerTuning
 var _movement: RunnerMovement
@@ -20,7 +22,7 @@ var _movement: RunnerMovement
 
 func before_test() -> void:
 	_tuning = load("res://runner/default_runner_tuning.tres")
-	_movement = RunnerMovement.new(_tuning)
+	_movement = RunnerMovement.new(_tuning, STANDING_HEIGHT)
 
 
 ## The Player holding [param direction], or no move input.
@@ -178,7 +180,7 @@ func test_steering_and_crouch_change_nothing_during_a_wall_run() -> void:
 	# Two Runners meet the wall the same way; one is then steered every way and crouched.
 	var held := _movement
 	var held_velocity := _meet_wall(_toward_wall(FAST, GLANCING))
-	var steered := RunnerMovement.new(_tuning)
+	var steered := RunnerMovement.new(_tuning, STANDING_HEIGHT)
 	_movement = steered
 	var steered_velocity := _meet_wall(_toward_wall(FAST, GLANCING))
 	for direction: Vector3 in [Vector3.BACK, WALL_NORMAL, Vector3.RIGHT, Vector3.ZERO]:

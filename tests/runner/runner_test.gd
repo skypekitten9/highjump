@@ -12,6 +12,8 @@ const CEILING_FAR_EDGE := -4.0
 const LONG_RAMP_SLOPE := 15.0
 ## The wall in the Wall-run test has its face at this x, m.
 const WALL_FACE_X := 1.5
+## The box in the Mantle tests has its face at this z, ahead of a Runner at the origin, m.
+const BOX_FACE_Z := -0.6
 ## Radius of the Runner's body in its scene, m.
 const RUNNER_RADIUS := 0.35
 ## Height of the Runner's standing body in its scene, m.
@@ -26,6 +28,7 @@ func before_test() -> void:
 
 func after_test() -> void:
 	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	Input.action_release("crouch")
 	Input.action_release("jump")
 
@@ -295,6 +298,7 @@ func _crouch_under_ceiling_then_walk_clear(csg: bool) -> void:
 		if runner.position.z < CEILING_FAR_EDGE / 2.0:
 			break
 	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	Input.action_release("crouch")
 	await scene.simulate_frames(30, 16)
 	# Got under, and stays low there with crouch released.
@@ -660,3 +664,349 @@ func test_mouse_look_turns_and_pitches_the_camera_during_a_wall_run() -> void:
 	await scene.simulate_frames(1, 16)
 	assert_bool(runner.is_wall_running()).is_true()
 	assert_float(_camera_roll(runner)).is_greater(_tuning.wall_run_camera_tilt * 0.5)
+
+
+## A wide floor with a box ahead of a Runner at the origin facing -Z: its face at z =
+## [param face_z], its top [param top] above the floor.
+func _world_with_box(top: float, face_z := BOX_FACE_Z) -> Node3D:
+	var world := _world_with_floor()
+	var box := CSGBox3D.new()
+	box.size = Vector3(4.0, top, 4.0)
+	box.position = Vector3(0.0, top / 2.0, face_z - 2.0)
+	box.use_collision = true
+	world.add_child(box)
+	return world
+
+
+func test_the_ledge_probe_finds_a_box_within_mantle_reach() -> void:
+	var world := _world_with_box(1.0)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	assert_vector(ledge.normal).is_equal_approx(Vector3.BACK, Vector3.ONE * 0.01)
+	assert_float(ledge.top_height).is_equal_approx(1.0, 0.02)
+	assert_float(ledge.clear_height).is_greater_equal(RUNNER_HEIGHT)
+
+
+func test_the_ledge_probe_finds_nothing_beyond_mantle_reach() -> void:
+	var world := _world_with_box(_tuning.mantle_reach + 0.2)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+func test_jumping_into_a_box_too_high_to_jump_onto_mantles_onto_it() -> void:
+	# Higher than the jump alone reaches, within it plus Mantle reach.
+	var top := _tuning.jump_height + 0.8
+	var world := _world_with_box(top)
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		# Wholly on top, or back on the floor in front of the box.
+		var on_top := runner.position.z < BOX_FACE_Z - RUNNER_RADIUS
+		if runner.is_on_floor() and (on_top or runner.position.y < 0.1):
+			break
+	Input.action_release("move_forward")
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
+
+
+## Adds a CSG box with collision of [param size], centered at [param center], to [param world].
+func _add_csg_box(world: Node3D, size: Vector3, center: Vector3) -> void:
+	var box := CSGBox3D.new()
+	box.size = size
+	box.position = center
+	box.use_collision = true
+	world.add_child(box)
+
+
+## The box of [method _world_with_box] with a CSG slab over its whole top, its underside
+## [param room] above the top. The slab's front is flush with the box's face.
+func _world_with_ceiling_over_box(top: float, room: float) -> Node3D:
+	var world := _world_with_box(top)
+	var thickness := 0.3
+	_add_csg_box(
+		world,
+		Vector3(4.0, thickness, 4.0),
+		Vector3(0.0, top + room + thickness / 2.0, BOX_FACE_Z - 2.0),
+	)
+	return world
+
+
+func test_the_ledge_probe_measures_the_room_under_a_ceiling_over_the_top() -> void:
+	# The slab's own top is within Mantle reach: the probe must not take it for the ledge's top.
+	var world := _world_with_ceiling_over_box(0.5, 0.7)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	assert_float(ledge.top_height).is_equal_approx(0.5, 0.02)
+	assert_float(ledge.clear_height).is_equal_approx(0.7, 0.02)
+
+
+func test_the_ledge_probe_finds_nothing_on_a_top_too_thin_to_stand_on() -> void:
+	var world := _world_with_floor()
+	var thin := RUNNER_RADIUS * 0.6
+	_add_csg_box(world, Vector3(4.0, 1.0, thin), Vector3(0.0, 0.5, BOX_FACE_Z - thin / 2.0))
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+## The box of [method _world_with_box], its top 1 m up, with a CSG slab over the Runner's head
+## that stops at the box's face: the way up to the top is blocked.
+func _world_with_slab_over_runner() -> Node3D:
+	var world := _world_with_box(1.0)
+	var bottom := RUNNER_HEIGHT + 0.3
+	var size := Vector3(4.0, 0.3, 3.0)
+	_add_csg_box(world, size, Vector3(0.0, bottom + size.y / 2.0, BOX_FACE_Z + size.z / 2.0))
+	return world
+
+
+func test_the_ledge_probe_finds_nothing_when_something_overhead_blocks_the_way_up() -> void:
+	var world := _world_with_slab_over_runner()
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+func test_jumping_into_a_box_with_room_only_to_crouch_on_top_mantles_into_a_crouch() -> void:
+	var top := 1.0
+	var room := (_tuning.crouch_height + RUNNER_HEIGHT) / 2.0
+	var world := _world_with_ceiling_over_box(top, room)
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		var on_top := runner.position.z < BOX_FACE_Z - RUNNER_RADIUS
+		if runner.is_on_floor() and (on_top or runner.position.y < 0.1):
+			break
+	Input.action_release("move_forward")
+	await scene.simulate_frames(5, 16)
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
+	assert_float(_body_top(runner)).is_equal_approx(_tuning.crouch_height, 0.02)
+
+
+func test_steering_into_a_low_wall_during_a_wall_run_mantles_onto_its_top() -> void:
+	# Tall enough to run along from a jump, its top within Mantle reach during the run.
+	var top := 2.2
+	var world := _world_with_floor()
+	var thickness := 3.0
+	_add_csg_box(
+		world,
+		Vector3(thickness, top, 60.0),
+		Vector3(WALL_FACE_X + thickness / 2.0, top / 2.0, -20.0),
+	)
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	# Only a couple of frames in: once the middle of the body rises past the top, the run loses
+	# the wall, and a frame may hold two physics steps.
+	var running_frames := 0
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			running_frames += 1
+			if running_frames == 2:
+				break
+	assert_int(running_frames).is_equal(2)
+	var speed_along := -runner.velocity.z
+	# Steer into the wall, on the Runner's right: the run turns straight into a Mantle.
+	Input.action_press("move_right")
+	await scene.simulate_frames(1, 16)
+	assert_bool(runner.is_mantling()).is_true()
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		if runner.is_on_floor():
+			break
+	Input.action_release("move_right")
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.x).is_greater(WALL_FACE_X + RUNNER_RADIUS)
+	# Still heading on along the wall, fast.
+	assert_float(-runner.velocity.z).is_greater(speed_along * 0.5)
+
+
+## Looks up by [param look_up] pixels of mouse movement, then jumps [param runner] into the box
+## ahead, holding forward, until it lands after a Mantle. Calls [param on_mantle] once, on the
+## Mantle's first frame, if given. Returns the camera's pitch relative to the mouse pitch on each
+## frame of the Mantle under "during", and on each of the 60 frames after it under "after",
+## degrees (negative is down).
+func _camera_dip_through_mantle(
+	world: Node3D,
+	runner: Runner,
+	look_up := 0.0,
+	on_mantle := Callable(),
+) -> Dictionary:
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	runner.look(Vector2(0.0, -look_up))
+	var head_pitch := look_up * rad_to_deg(_tuning.mouse_sensitivity)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	var during: Array[float] = []
+	var after: Array[float] = []
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_mantling():
+			if during.is_empty() and on_mantle.is_valid():
+				on_mantle.call()
+			during.append(_camera_aim(runner).y - head_pitch)
+		elif not during.is_empty():
+			after.append(_camera_aim(runner).y - head_pitch)
+			if after.size() == 60:
+				break
+	Input.action_release("move_forward")
+	return { "during": during, "after": after }
+
+
+## Largest change from one pitch to the next in [param pitches], starting from [param start].
+## A frame may hold two physics steps, so an eased change can be up to two steps' worth.
+func _largest_step(start: float, pitches: Array[float]) -> float:
+	var largest := 0.0
+	var previous := start
+	for pitch: float in pitches:
+		largest = maxf(largest, absf(pitch - previous))
+		previous = pitch
+	return largest
+
+
+func test_the_camera_dips_during_a_mantle_and_eases_back_to_the_mouse_pitch() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var runner := _add_runner(world, 0.0)
+	# Looking up a little, by mouse pitch alone.
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 40.0)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+	var full := _tuning.mantle_camera_dip
+
+	assert_int(during.size()).is_greater(5)
+	assert_int(after.size()).is_equal(60)
+	# Dips most of the way to the full dip, never past it, and eases back to the mouse pitch.
+	assert_float(during.min()).is_less(-full * 0.5)
+	assert_float(during.min()).is_greater_equal(-full - 0.01)
+	assert_float(_largest_step(0.0, during + after)).is_less(full * 0.5)
+	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
+
+
+func test_a_mantle_that_ends_early_eases_the_camera_back_to_level_without_a_jump() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var box: Node3D = world.get_child(world.get_child_count() - 1)
+	var runner := _add_runner(world, 0.0)
+	# The box drops away as the Mantle begins, so the leap falls back past its top in mid-air.
+	var drop_box := func() -> void:
+		box.position.y -= 50.0
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 0.0, drop_box)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+	var full := _tuning.mantle_camera_dip
+
+	assert_int(after.size()).is_equal(60)
+	assert_float(during[-1]).is_less(-full * 0.5)
+	assert_float(_largest_step(during[-1], after)).is_less(full * 0.5)
+	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
+
+
+func test_with_the_mantle_dip_at_zero_the_camera_stays_level() -> void:
+	var world := _world_with_box(_tuning.jump_height + 0.8)
+	var no_dip: RunnerTuning = _tuning.duplicate()
+	no_dip.mantle_camera_dip = 0.0
+	var runner := _add_runner(world, 0.0, no_dip)
+	var dip: Dictionary = await _camera_dip_through_mantle(world, runner, 0.0)
+	var during: Array[float] = dip["during"]
+	var after: Array[float] = dip["after"]
+
+	assert_int(during.size()).is_greater(5)
+	for pitch: float in during + after:
+		assert_float(pitch).is_equal_approx(0.0, 0.001)
+
+
+## Asserts the ledge probe finds the box of [method _world_with_box] with its top
+## [param top] above the floor.
+func _assert_probe_finds_top(top: float) -> void:
+	var world := _world_with_box(top)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.top_height).is_equal_approx(top, 0.02)
+
+
+func test_the_ledge_probe_finds_a_top_just_under_mantle_reach() -> void:
+	await _assert_probe_finds_top(_tuning.mantle_reach - 0.01)
+
+
+## A thin CSG slab floating ahead of the Runner at the origin, its front face at
+## [constant BOX_FACE_Z], its top [param top] above the floor: a lip with no face below it.
+func _world_with_thin_lip(top: float, thickness: float) -> Node3D:
+	var world := _world_with_floor()
+	_add_csg_box(
+		world,
+		Vector3(4.0, thickness, 4.0),
+		Vector3(0.0, top - thickness / 2.0, BOX_FACE_Z - 2.0),
+	)
+	return world
+
+
+func test_the_ledge_probe_finds_a_thin_lip_just_under_mantle_reach() -> void:
+	var top := _tuning.mantle_reach - 0.02
+	var world := _world_with_thin_lip(top, 0.06)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.top_height).is_equal_approx(top, 0.02)
+
+
+func test_the_ledge_probe_measures_the_room_under_a_ceiling_over_part_of_the_body() -> void:
+	# A slab 0.7 m over the 0.5 m top, starting a little beyond where the body's middle would
+	# stand on it: it is over the far part of the body only.
+	var top := 0.5
+	var room := 0.7
+	var world := _world_with_box(top)
+	var front := BOX_FACE_Z - RUNNER_RADIUS - 0.15
+	var size := Vector3(4.0, 0.3, 3.0)
+	_add_csg_box(world, size, Vector3(0.0, top + room + size.y / 2.0, front - size.z / 2.0))
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.clear_height).is_equal_approx(room, 0.02)

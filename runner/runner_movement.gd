@@ -5,22 +5,29 @@ extends RefCounted
 ## without a scene. It continues from whatever velocity it is given, so other mechanics can hand
 ## speed to it (see docs/adr/0004).
 
-## What the Runner is doing. A Slide and a Crouch are low; Run, Air and a Wall-run stand where
-## there is room.
+## What the Runner is doing. A Slide and a Crouch are low; Run, Air, a Wall-run and a Mantle
+## stand where there is room.
 enum State {
 	RUN,
 	AIR,
 	SLIDE,
 	CROUCH,
 	WALL_RUN,
+	MANTLE,
 }
 
 ## Speed away from the floor plane above which a floor contact is ignored (leaving it), m/s.
 const LEAVE_FLOOR_SPEED := 0.5
 ## Floor normals flatter than this (y component) are too steep to stand on or project onto.
 const MIN_FLOOR_NORMAL_Y := 0.1
+## A Mantle that has neither landed nor fallen back below its top after this long ends in the
+## air, so the Runner is never stuck in one, s.
+const MANTLE_TIME_LIMIT := 1.0
 
 var _tuning: RunnerTuning
+## Height of the Runner's standing body, m. A ledge with less clear height on top has room only
+## to crouch.
+var _standing_height: float
 var _state := State.RUN
 ## True if the body is low after the last step.
 var _low := false
@@ -53,17 +60,41 @@ var _locked_wall_id := 0
 ## lands; INF if there was none. The next Wall-run may be faster only up to the Top wall-run
 ## speed, unless this was already faster.
 var _wall_jump_speed := INF
+## Horizontal velocity a Mantle's leap holds; meaningful only in a Mantle.
+var _mantle_horizontal_velocity := Vector3.ZERO
+## Height of the Mantle's top above the feet, m: followed as the leap moves, so it knows when the
+## Runner falls back below the top. Meaningful only in a Mantle.
+var _mantle_top_above_feet := 0.0
+## Time since the Mantle began, s.
+var _mantle_time := 0.0
+## True if the Mantle's top has room only for the crouched body, so the body stays low through
+## the leap. Meaningful only in a Mantle.
+var _mantle_low := false
+## True while no Mantle can start: from a Mantle's start until the Runner lands. A Mantle that
+## ends in the air so never starts again straight away on the same ledge.
+var _mantle_locked := false
 
 
-func _init(tuning: RunnerTuning) -> void:
+## [param standing_height] is the height of the Runner's standing body, m.
+func _init(tuning: RunnerTuning, standing_height: float) -> void:
 	_tuning = tuning
+	_standing_height = standing_height
 
 
-## Returns the Runner's velocity for this physics frame.
+## Returns the Runner's velocity for this physics frame. A Mantle goes on until it ends. In a
+## Wall-run a waiting jump is a Wall-jump; otherwise a Mantle beats carrying on the run, and
+## beats starting one.
 func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> Vector3:
 	_elapsed += delta
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
+	if _state == State.MANTLE:
+		return _step_mantle(intent, contact, velocity, grounded, delta)
+	if _state == State.WALL_RUN and _jump_buffer_timer > 0.0 and not grounded:
+		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
+		return _finish(jump, false, contact)
+	if _starts_mantle(intent, contact, grounded):
+		return _finish(_start_mantle(contact, velocity), false, contact)
 	if _state == State.WALL_RUN:
 		return _step_wall_run(intent, contact, velocity, grounded, delta)
 	if _starts_wall_run(intent, contact, velocity, grounded):
@@ -112,9 +143,9 @@ func clear_jump_timers() -> void:
 	_jump_buffer_timer = 0.0
 
 
-## A step in a Wall-run: a waiting jump is a Wall-jump; otherwise the run goes on along the wall,
-## or ends keeping its velocity and the Runner moves as it would off the wall, so a landing goes
-## on through the ground states.
+## A step in a Wall-run with no Wall-jump or Mantle: the run goes on along the wall, or ends
+## keeping its velocity and the Runner moves as it would off the wall, so a landing goes on
+## through the ground states.
 func _step_wall_run(
 	intent: Intent,
 	contact: Contact,
@@ -122,9 +153,6 @@ func _step_wall_run(
 	grounded: bool,
 	delta: float,
 ) -> Vector3:
-	if _jump_buffer_timer > 0.0 and not grounded:
-		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
-		return _finish(jump, false, contact)
 	var next_normal := _next_wall_normal(grounded, contact, velocity)
 	if not next_normal.is_zero_approx():
 		_locked_wall_id = contact.wall.id
@@ -191,21 +219,28 @@ func _step_off_wall(
 ## Records what this step decided and returns [param velocity].
 func _finish(velocity: Vector3, grounded: bool, contact: Contact) -> Vector3:
 	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
-	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
-	# stand, even in the air, so it never stands up into a ceiling.
-	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
+	# A Slide, a Crouch and a Mantle onto a top with room only to crouch are low. Otherwise a body
+	# already low stays low until there is room to stand, even in the air, so it never stands up
+	# into a ceiling.
+	_low = (
+		_state == State.SLIDE or _state == State.CROUCH
+		or (_state == State.MANTLE and _mantle_low) or (_low and not contact.headroom)
+	)
 	_last_velocity = velocity
 	return velocity
 
 
 func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> void:
-	_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
+	# A jump waiting during a Mantle waits for its landing, however long it lasts.
+	if _state != State.MANTLE:
+		_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
 	if jump_pressed:
 		_jump_buffer_timer = _tuning.jump_buffer_time
 	if grounded:
 		_coyote_timer = _tuning.coyote_time
 		_coyote_wall_normal = Vector3.ZERO
 		_wall_locked = false
+		_mantle_locked = false
 		_wall_jump_speed = INF
 	else:
 		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
@@ -340,6 +375,78 @@ func _touches_wall_in_air(contact: Contact, grounded: bool) -> bool:
 ## it or away from it, PI / 2 straight into it.
 func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
 	return asin(clampf(-direction.normalized().dot(normal), 0.0, 1.0))
+
+
+## True if the Runner, in the air, has a ledge ahead it can Mantle onto: its face is near enough
+## vertical to be a wall, the Player holds a direction within the Mantle input angle of straight
+## into it, its top is above the feet and within Mantle reach, and at least the crouched body
+## fits on it. No Mantle starts again until the Runner has landed since the last one began.
+func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
+	var ledge: LedgeContact = contact.ledge
+	if grounded or _mantle_locked or ledge == null or not is_wall(ledge.normal):
+		return false
+	if intent.move_direction.is_zero_approx():
+		return false
+	var into := -intent.move_direction.normalized().dot(_horizontal_unit(ledge.normal))
+	if into < cos(deg_to_rad(_tuning.mantle_input_angle)):
+		return false
+	if ledge.top_height <= 0.0 or ledge.top_height > _tuning.mantle_reach:
+		return false
+	return ledge.clear_height >= _tuning.crouch_height
+
+
+## Starts a Mantle's leap: upward speed is lifted, never lowered, to just enough for the arc to
+## peak the Mantle clearance above the top under the leap gravity. Horizontal velocity is fixed
+## for the leap: the speed along the face, plus a part into it of at least the Mantle inward
+## speed, at all the speed there was before the face took any, and at least Run speed (see
+## docs/adr/0007). A top with room only to crouch takes the body low for the whole leap. Any
+## coyote time is forgotten, so a jump waiting for the landing never fires in mid-air if the
+## Mantle falls back.
+func _start_mantle(contact: Contact, velocity: Vector3) -> Vector3:
+	_state = State.MANTLE
+	_mantle_locked = true
+	_coyote_timer = 0.0
+	_mantle_low = contact.ledge.clear_height < _standing_height
+	_slide_released = false
+	_mantle_time = 0.0
+	_mantle_top_above_feet = contact.ledge.top_height
+	var normal := _horizontal_unit(contact.ledge.normal)
+	var horizontal := _before_wall_collision(velocity, normal)
+	var into := maxf(-horizontal.dot(normal), _tuning.mantle_inward_speed)
+	var heading := (_along_wall(horizontal, normal) - normal * into).normalized()
+	if heading.is_zero_approx():
+		heading = -normal
+	_mantle_horizontal_velocity = heading * maxf(horizontal.length(), _tuning.run_speed)
+	var peak := contact.ledge.top_height + _tuning.mantle_clearance
+	var vertical := maxf(velocity.y, sqrt(2.0 * _leap_gravity() * peak))
+	return _mantle_horizontal_velocity + Vector3.UP * vertical
+
+
+## A step in a Mantle: the leap arcs on under the leap gravity, its horizontal velocity fixed and
+## steering ignored. Touching the floor ends it as an ordinary landing. Falling back below the
+## top, or lasting [constant MANTLE_TIME_LIMIT], ends it in the air keeping its velocity. Either
+## way the Runner then moves as it would off a wall.
+func _step_mantle(
+	intent: Intent,
+	contact: Contact,
+	velocity: Vector3,
+	grounded: bool,
+	delta: float,
+) -> Vector3:
+	_mantle_time += delta
+	# How far the feet rose in the move the engine just made.
+	_mantle_top_above_feet -= velocity.y * delta
+	var fell_back := velocity.y < 0.0 and _mantle_top_above_feet > 0.0
+	if grounded or fell_back or _mantle_time >= MANTLE_TIME_LIMIT:
+		_go_airborne()
+		return _step_off_wall(intent, contact, velocity, grounded, delta)
+	var vertical := velocity.y - _leap_gravity() * delta
+	return _finish(_mantle_horizontal_velocity + Vector3.UP * vertical, false, contact)
+
+
+## Gravity during a Mantle's leap, m/s^2.
+func _leap_gravity() -> float:
+	return _tuning.gravity * _tuning.mantle_leap_gravity_scale
 
 
 ## True if the Runner meets a wall in the air that it can run: fast enough, at a glancing enough
@@ -511,6 +618,8 @@ class Contact:
 	var headroom: bool
 	## The surface that may be a wall the body touches, or null if it touches none.
 	var wall: WallContact
+	## The ledge ahead in the held direction, or null if there is none.
+	var ledge: LedgeContact
 
 
 	func _init(
@@ -518,11 +627,13 @@ class Contact:
 		p_floor_normal := Vector3.UP,
 		p_headroom := true,
 		p_wall: WallContact = null,
+		p_ledge: LedgeContact = null,
 	) -> void:
 		on_floor = p_on_floor
 		floor_normal = p_floor_normal
 		headroom = p_headroom
 		wall = p_wall
+		ledge = p_ledge
 
 
 ## A surface the Runner's body touches that may be a wall; RunnerMovement decides whether it is
@@ -537,3 +648,20 @@ class WallContact:
 	func _init(p_normal: Vector3, p_id: int) -> void:
 		normal = p_normal
 		id = p_id
+
+
+## A ledge ahead of the Runner: a face that may be a wall, with a top the Runner could Mantle
+## onto. RunnerMovement decides whether it can.
+class LedgeContact:
+	## The face's normal.
+	var normal: Vector3
+	## Height of the top above the Runner's feet, m.
+	var top_height: float
+	## How much room there is above the top, m; INF if nothing is near overhead.
+	var clear_height: float
+
+
+	func _init(p_normal: Vector3, p_top_height: float, p_clear_height: float) -> void:
+		normal = p_normal
+		top_height = p_top_height
+		clear_height = p_clear_height

@@ -2,10 +2,21 @@ class_name Runner
 extends CharacterBody3D
 ## The body the Player controls, seen from its own eyes. Reads input and does mouse look;
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
-## Reports whether there is headroom to stand and which wall the body touches, sizes the body as
-## RunnerMovement says, and eases the camera's height after it and its roll during a Wall-run.
+## Reports whether there is headroom to stand, which wall the body touches and the ledge ahead,
+## sizes the body as RunnerMovement says, and eases the camera's height after it, its roll
+## during a Wall-run and its dip during a Mantle.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
+## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
+## under the Runner for a top, m.
+const LEDGE_MIN_TOP := 0.05
+## How many rays round the edge of the body's footprint measure the room on a ledge's top, besides
+## one up its middle.
+const ROOM_RAYS_AROUND := 8
+## Greatest spacing of the ledge probe's rays up a face, m. They are spaced evenly from
+## [constant LEDGE_MIN_TOP] above the feet to as far below Mantle reach, so a face is found
+## however near its top is to the reach.
+const LEDGE_PROBE_SPACING := 0.2
 
 ## The feel values for this Runner.
 @export var tuning: RunnerTuning = preload("res://runner/default_runner_tuning.tres")
@@ -23,11 +34,11 @@ var _body_low := false
 
 
 func _ready() -> void:
-	_movement = RunnerMovement.new(tuning)
 	# Own copy, so resizing it never touches the scene's shared sub-resource.
 	_capsule = (_body.shape as CapsuleShape3D).duplicate() as CapsuleShape3D
 	_body.shape = _capsule
 	_standing_height = _capsule.height
+	_movement = RunnerMovement.new(tuning, _standing_height)
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
 	floor_snap_length = tuning.floor_snap_length
@@ -59,6 +70,7 @@ func _physics_process(delta: float) -> void:
 		floor_normal,
 		_has_headroom(),
 		_touched_wall(),
+		null if on_floor else find_ledge(wish),
 	)
 	velocity = _movement.step(intent, contact, velocity, delta)
 	_set_body_low(_movement.is_low())
@@ -73,6 +85,57 @@ func _physics_process(delta: float) -> void:
 ## True if the Runner is in a Wall-run.
 func is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
+
+
+## True if the Runner is in a Mantle.
+func is_mantling() -> bool:
+	return _movement.state() == RunnerMovement.State.MANTLE
+
+
+## The ledge ahead in [param direction]: a face near enough vertical to be a wall, just ahead
+## of the body, whose top is above the feet and within Mantle reach. Null if there is none, or
+## no direction. Looks down onto the top a body radius inside the edge, from the first height up
+## the face where the way ahead is open, so a ceiling over the top isn't taken for the top. Then
+## measures the room above the top with rays across the body's footprint there, and finds
+## nothing if the body, as it is now, can't rise straight up until its feet are level with the
+## top (a shape overlap query misses CSG and trimesh ceilings).
+func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
+	var heading := Vector3(direction.x, 0.0, direction.z)
+	if heading.is_zero_approx():
+		return null
+	var face := _ledge_face(heading.normalized())
+	if face == null:
+		return null
+	# Where the body's middle would stand on the top: a body radius in from the face.
+	var over_top := face.position - _horizontal_unit(face.normal) * _capsule.radius
+	var feet: float = global_position.y
+	var top_hit := _cast(
+		Vector3(over_top.x, feet + face.opening, over_top.z),
+		Vector3(over_top.x, feet + LEDGE_MIN_TOP, over_top.z),
+	)
+	if top_hit.is_empty() or (top_hit["normal"] as Vector3).y < cos(floor_max_angle):
+		return null
+	var top: Vector3 = top_hit["position"]
+	if test_move(global_transform, Vector3.UP * (top.y - feet)):
+		return null
+	var room_on_top := _room_above(top)
+	return RunnerMovement.LedgeContact.new(face.normal, top.y - feet, room_on_top)
+
+
+## The room above a ledge's top for a body standing with its middle at [param middle], on the
+## top: the lowest a ray straight up finds anything, from the middle and from points round the
+## edge of the body's footprint, m; INF if none finds anything within standing height.
+func _room_above(middle: Vector3) -> float:
+	var room := INF
+	for index: int in ROOM_RAYS_AROUND + 1:
+		var from: Vector3 = middle
+		if index > 0:
+			var angle := TAU * index / ROOM_RAYS_AROUND
+			from += Vector3.FORWARD.rotated(Vector3.UP, angle) * _capsule.radius
+		var above := _cast(from, from + Vector3.UP * _standing_height)
+		if not above.is_empty():
+			room = minf(room, (above["position"] as Vector3).y - middle.y)
+	return room
 
 
 ## Turns the body and pitches the head by [param relative] pixels of mouse movement. Leaves the
@@ -113,6 +176,42 @@ func _touched_wall() -> RunnerMovement.WallContact:
 	return RunnerMovement.WallContact.new(normal, id)
 
 
+## The lowest place rays cast along [param heading] from the body's axis, spaced evenly from
+## just above the feet to just below Mantle reach, hit a face near enough vertical to be a wall;
+## null if none do.
+func _ledge_face(heading: Vector3) -> LedgeFace:
+	var lowest := LEDGE_MIN_TOP
+	var highest := maxf(tuning.mantle_reach - LEDGE_MIN_TOP, lowest)
+	var gaps := ceili((highest - lowest) / LEDGE_PROBE_SPACING)
+	var face: LedgeFace = null
+	for index: int in gaps + 1:
+		var height := lerpf(lowest, highest, float(index) / gaps) if gaps > 0 else lowest
+		var from := global_position + Vector3.UP * height
+		var hit := _cast(from, from + heading * (_capsule.radius + tuning.ledge_probe_ahead))
+		if face == null:
+			if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
+				var hit_position: Vector3 = hit["position"]
+				var hit_normal: Vector3 = hit["normal"]
+				face = LedgeFace.new(hit_position, hit_normal, tuning.mantle_reach)
+		elif hit.is_empty():
+			face.opening = height
+			return face
+	return face
+
+
+func _horizontal_unit(vector: Vector3) -> Vector3:
+	return Vector3(vector.x, 0.0, vector.z).normalized()
+
+
+## The first thing a ray from [param from] to [param to] hits, other than the Runner; empty if
+## none.
+func _cast(from: Vector3, to: Vector3) -> Dictionary:
+	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
+	# Starting inside a box out of reach, the ray must not find the box's underside.
+	ray.hit_back_faces = false
+	return get_world_3d().direct_space_state.intersect_ray(ray)
+
+
 ## Shrinks or grows the body from the top, so the feet stay put.
 func _set_body_low(low: bool) -> void:
 	_body_low = low
@@ -131,13 +230,17 @@ func _has_headroom() -> bool:
 
 ## Eases the eyes toward the body's eye height, but never above a ceiling overhead (going
 ## under one quickly would otherwise drag the camera through it before the ease catches up).
-## Eases the camera's roll toward the Wall-run tilt at the same rate.
+## Eases the camera's roll toward the Wall-run tilt, and its pitch toward the Mantle dip, at the
+## same rate, so neither snaps when a run or a Mantle ends. The dip pitches the camera within
+## the Head, leaving the mouse pitch alone.
 func _ease_camera(delta: float) -> void:
 	var target := _capsule.height - _eye_below_top
 	var weight := 1.0 - exp(-tuning.camera_smoothing * delta)
 	var eased := lerpf(_head.position.y, target, weight)
 	_head.position.y = minf(eased, _ceiling_eye_limit())
 	_camera.rotation.z = lerpf(_camera.rotation.z, _wall_run_roll(), weight)
+	var dip := -deg_to_rad(tuning.mantle_camera_dip) if is_mantling() else 0.0
+	_camera.rotation.x = lerpf(_camera.rotation.x, dip, weight)
 
 
 ## The camera's roll during a Wall-run: away from the wall's side of the view, so a wall on the
@@ -163,3 +266,20 @@ func _ceiling_eye_limit() -> float:
 		return INF
 	var ceiling := (hit["position"] as Vector3).y - global_position.y
 	return maxf(ceiling - tuning.camera_ceiling_gap, low_eye)
+
+
+## Where the ledge probe found a ledge's face.
+class LedgeFace:
+	## Where the lowest ray hit the face.
+	var position: Vector3
+	## The face's normal there.
+	var normal: Vector3
+	## Height above the feet of the first ray above that hit to find nothing, or Mantle reach if
+	## none did: the face's top is below it, m.
+	var opening: float
+
+
+	func _init(p_position: Vector3, p_normal: Vector3, p_opening: float) -> void:
+		position = p_position
+		normal = p_normal
+		opening = p_opening

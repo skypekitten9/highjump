@@ -394,3 +394,320 @@ billboard = 1
 text = "Inside corner"
 font_size = 96
 outline_size = 24
+
+[node name="Mantle" type="Node3D" parent="PlaytestCourse"]
+
+[node name="HeightLadder" type="Node3D" parent="PlaytestCourse/Mantle"]
+position = Vector3(0, 0, 30)
+
+[node name="Ledge05" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge05"]
+position = Vector3(8, 0.25, 0)
+use_collision = true
+size = Vector3(6, 0.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge05"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge05"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge05"]
+position = Vector3(4.5, 1.1, 0)
+billboard = 1
+text = "0.5 m"
+font_size = 64
+outline_size = 16
+
+[node name="Ledge10" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(0, 0, 5)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge10"]
+position = Vector3(8, 0.5, 0)
+use_collision = true
+size = Vector3(6, 1, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge10"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge10"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge10"]
+position = Vector3(4.5, 1.6, 0)
+billboard = 1
+text = "1.0 m"
+font_size = 64
+outline_size = 16
+
+[node name="Ledge15" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(0, 0, 10)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge15"]
+position = Vector3(8, 0.75, 0)
+use_collision = true
+size = Vector3(6, 1.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge15"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge15"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge15"]
+position = Vector3(4.5, 2.1, 0)
+billboard = 1
+text = "1.5 m"
+font_size = 64
+outline_size = 16
+
+[node name="Ledge20" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(0, 0, 15)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge20"]
+position = Vector3(8, 1, 0)
+use_collision = true
+size = Vector3(6, 2, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge20"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge20"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge20"]
+position = Vector3(4.5, 2.6, 0)
+billboard = 1
+text = "2.0 m"
+font_size = 64
+outline_size = 16
+
+[node name="Ledge25" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(0, 0, 20)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge25"]
+position = Vector3(8, 1.25, 0)
+use_collision = true
+size = Vector3(6, 2.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge25"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge25"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge25"]
+position = Vector3(4.5, 3.1, 0)
+billboard = 1
+text = "2.5 m"
+font_size = 64
+outline_size = 16
+
+[node name="Ledge32" type="Node3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(0, 0, 25)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge32"]
+position = Vector3(8, 1.6, 0)
+use_collision = true
+size = Vector3(6, 3.2, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge32"]
+position = Vector3(5, 0, 0)
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge32"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge32"]
+position = Vector3(4.5, 3.8, 0)
+billboard = 1
+text = "3.2 m"
+font_size = 64
+outline_size = 16
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/HeightLadder"]
+position = Vector3(-3, 4, 12.5)
+billboard = 1
+text = "Height ladder"
+font_size = 96
+outline_size = 24
+
+[node name="WallRunWalls" type="Node3D" parent="PlaytestCourse/Mantle"]
+position = Vector3(-50, 0, 30)
+
+[node name="Wall25" type="Node3D" parent="PlaytestCourse/Mantle/WallRunWalls"]
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall25"]
+position = Vector3(14, 1.25, 3.5)
+use_collision = true
+size = Vector3(30, 2.5, 4)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall25"]
+rotation_degrees = Vector3(0, -110, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall25"]
+position = Vector3(-1.5, 3.1, 1.5)
+billboard = 1
+text = "2.5 m"
+font_size = 64
+outline_size = 16
+
+[node name="Wall30" type="Node3D" parent="PlaytestCourse/Mantle/WallRunWalls"]
+position = Vector3(0, 0, 10)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall30"]
+position = Vector3(14, 1.5, 3.5)
+use_collision = true
+size = Vector3(30, 3, 4)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall30"]
+rotation_degrees = Vector3(0, -110, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall30"]
+position = Vector3(-1.5, 3.6, 1.5)
+billboard = 1
+text = "3.0 m"
+font_size = 64
+outline_size = 16
+
+[node name="Wall35" type="Node3D" parent="PlaytestCourse/Mantle/WallRunWalls"]
+position = Vector3(0, 0, 20)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall35"]
+position = Vector3(14, 1.75, 3.5)
+use_collision = true
+size = Vector3(30, 3.5, 4)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall35"]
+rotation_degrees = Vector3(0, -110, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall35"]
+position = Vector3(-1.5, 4.1, 1.5)
+billboard = 1
+text = "3.5 m"
+font_size = 64
+outline_size = 16
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/WallRunWalls"]
+position = Vector3(-3, 5, 10)
+billboard = 1
+text = "Wall-run walls"
+font_size = 96
+outline_size = 24
+
+[node name="SpeedLane" type="Node3D" parent="PlaytestCourse/Mantle"]
+position = Vector3(0, 0, 70)
+
+[node name="Shape" type="CSGPolygon3D" parent="PlaytestCourse/Mantle/SpeedLane"]
+position = Vector3(0, 0, 3)
+use_collision = true
+polygon = PackedVector2Array(0, 0, 0, 3, 4, 3, 16, 0)
+depth = 6.0
+material = SubResource("StandardMaterial3D_ramp")
+
+[node name="Ledge" type="CSGBox3D" parent="PlaytestCourse/Mantle/SpeedLane"]
+position = Vector3(34, 0.8, 0)
+use_collision = true
+size = Vector3(24, 1.6, 6)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/SpeedLane"]
+position = Vector3(22, 0, 0)
+
+[node name="SlideStart" type="Marker3D" parent="PlaytestCourse/Mantle/SpeedLane"]
+position = Vector3(1, 3, 0)
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/SpeedLane"]
+position = Vector3(-3, 4, 0)
+billboard = 1
+text = "Speed lane"
+font_size = 96
+outline_size = 24
+
+[node name="RoomChecks" type="Node3D" parent="PlaytestCourse/Mantle"]
+position = Vector3(20, 0, 30)
+
+[node name="CrouchOnly" type="Node3D" parent="PlaytestCourse/Mantle/RoomChecks"]
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
+position = Vector3(8, 0.75, 0)
+use_collision = true
+size = Vector3(6, 1.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Ceiling" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
+position = Vector3(8, 2.95, 0)
+use_collision = true
+size = Vector3(6, 0.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
+position = Vector3(4.5, 3.6, 0)
+billboard = 1
+text = "Crouch-only room"
+font_size = 64
+outline_size = 16
+
+[node name="NoRoom" type="Node3D" parent="PlaytestCourse/Mantle/RoomChecks"]
+position = Vector3(0, 0, 5)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
+position = Vector3(8, 0.75, 0)
+use_collision = true
+size = Vector3(6, 1.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Ceiling" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
+position = Vector3(8, 2.35, 0)
+use_collision = true
+size = Vector3(6, 0.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
+position = Vector3(4.5, 3, 0)
+billboard = 1
+text = "No room"
+font_size = 64
+outline_size = 16
+
+[node name="TooThin" type="Node3D" parent="PlaytestCourse/Mantle/RoomChecks"]
+position = Vector3(0, 0, 10)
+
+[node name="Box" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/TooThin"]
+position = Vector3(5.15, 0.75, 0)
+use_collision = true
+size = Vector3(0.3, 1.5, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/TooThin"]
+rotation_degrees = Vector3(0, -90, 0)
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/RoomChecks/TooThin"]
+position = Vector3(4.5, 2.1, 0)
+billboard = 1
+text = "Too thin to stand on"
+font_size = 64
+outline_size = 16
+
+[node name="Label" type="Label3D" parent="PlaytestCourse/Mantle/RoomChecks"]
+position = Vector3(-3, 4, 5)
+billboard = 1
+text = "Mantle room checks"
+font_size = 96
+outline_size = 24
