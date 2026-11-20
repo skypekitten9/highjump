@@ -437,6 +437,42 @@ func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
 	assert_bool(runner.is_wall_running()).is_false()
 
 
+func test_landing_on_a_ramp_during_a_wall_run_ends_it_on_the_ramp() -> void:
+	var world := _world_with_wall()
+	# Rising 20 degrees along the wall from z = -6, under where the run comes down.
+	var slope := deg_to_rad(20.0)
+	var ramp := CSGBox3D.new()
+	ramp.size = Vector3(4.0, 1.0, 20.0)
+	ramp.rotation.x = slope
+	var surface_normal := Vector3(0.0, cos(slope), sin(slope))
+	var uphill := Vector3(0.0, sin(slope), -cos(slope))
+	var foot := Vector3(WALL_FACE_X - 2.0, 0.0, -6.0)
+	ramp.position = foot - surface_normal * ramp.size.y / 2.0 + uphill * ramp.size.z / 2.0
+	ramp.use_collision = true
+	world.add_child(ramp)
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	var ran := false
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			ran = true
+		elif ran:
+			break
+
+	assert_bool(ran).is_true()
+	assert_bool(runner.is_wall_running()).is_false()
+	# Ended as the run came down onto the ramp (about 1.6 m up it), not further up it, with the
+	# feet on it, and then runs on up it.
+	var ramp_height := (foot.z - runner.global_position.z) * tan(slope)
+	assert_float(ramp_height).is_between(0.3, 2.5)
+	assert_float(runner.global_position.y).is_equal_approx(ramp_height, 0.1)
+	await scene.simulate_frames(2, 16)
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.get_floor_normal().angle_to(surface_normal)).is_less(0.01)
+
+
 func test_bumping_a_ceiling_during_a_wall_run_does_not_end_it() -> void:
 	var world := _world_with_wall()
 	# Low enough over the middle of the run for the top of the body to hit it.

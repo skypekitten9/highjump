@@ -206,6 +206,20 @@ func test_a_wall_run_ends_on_the_floor() -> void:
 	assert_float(_horizontal(velocity).length()).is_greater_equal(on_wall.length())
 
 
+func test_landing_on_a_slope_during_a_wall_run_ends_it_running_up_the_slope() -> void:
+	# Rising 20 degrees ahead, along the wall.
+	var slope := Vector3.UP.rotated(Vector3.RIGHT, deg_to_rad(20.0))
+	var on_slope := RunnerMovement.Contact.new(true, slope, true, _wall(WALL_NORMAL, WALL_ID))
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	velocity = _movement.step(_moving(FORWARD), _on_wall(), velocity, DELTA)
+	velocity = _movement.step(_moving(FORWARD), on_slope, velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	assert_bool(_movement.is_on_ground()).is_true()
+	# Along the slope, up it: neither into it nor off it.
+	assert_float(velocity.dot(slope)).is_equal_approx(0.0, 0.0001)
+	assert_float(velocity.y).is_greater(0.0)
+
+
 func test_landing_from_a_wall_run_with_crouch_held_slide_hops() -> void:
 	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
 	_movement.step(_crouching(FORWARD), _on_floor(), velocity, DELTA)
