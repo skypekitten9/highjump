@@ -139,6 +139,9 @@ def export(godot: str) -> None:
     check.step(f"Web export ({PRESET} preset)")
     shutil.rmtree(BUILD_DIR, ignore_errors=True)
     BUILD_DIR.mkdir(parents=True)
+    # build/ sits inside the project; without this Godot imports the exported files as
+    # project assets and packs them into the next export.
+    (BUILD_DIR.parent / ".gdignore").touch()
     target = BUILD_DIR / "index.html"
     code = check.run(
         [godot, "--headless", "--path", ".", "--export-release", PRESET, str(target)]
