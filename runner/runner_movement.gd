@@ -159,6 +159,9 @@ func _update_ground_state(
 			# Releasing crouch lets the Slide wind down; pressing it again continues the same
 			# Slide, with no new boost.
 			_slide_released = not crouch_held
+		State.AIR when crouch_held and horizontal.length() >= tuning.slide_entry_speed:
+			# A slide-hop: land straight into a Slide, keeping all speed.
+			return _start_slide(horizontal, tuning)
 		_:
 			# Crouch, or landing: crouch while crouch is held, and stand back up to Run only
 			# once crouch is released and there is room.

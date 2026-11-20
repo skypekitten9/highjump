@@ -637,3 +637,66 @@ func test_running_down_a_steep_slope_keeps_run_speed_and_gains_nothing() -> void
 		assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
 		assert_float(_horizontal_speed(velocity)).is_less_equal(_run_speed() + 0.001)
 	assert_float(_horizontal_speed(velocity)).is_equal_approx(_run_speed(), 0.001)
+
+
+## Lands on flat ground at [param speed] with crouch held, after a moment in the air.
+func _land_crouching(speed: float) -> Vector3:
+	var velocity := FORWARD * speed + Vector3.DOWN * 5.0
+	_air_step(velocity, FORWARD)
+	return _crouch_step(velocity, FORWARD, true)
+
+
+func test_landing_crouched_at_slide_entry_speed_or_faster_slides_losing_no_speed() -> void:
+	for speed: float in [_tuning.slide_entry_speed, _run_speed() + _tuning.slide_boost + OVERSPEED]:
+		_movement = RunnerMovement.new()
+		var velocity := _land_crouching(speed)
+		assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+		# At most one frame of slide friction (the faster of the two tiers) after landing.
+		var floor_speed := speed - _tuning.slow_slide_friction * DELTA - 0.001
+		assert_float(_horizontal_speed(velocity)).is_greater_equal(floor_speed)
+
+
+func test_landing_crouched_below_slide_entry_speed_gives_a_crouch() -> void:
+	_land_crouching(_tuning.slide_entry_speed - 0.1)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+
+
+func test_a_landing_slide_soon_after_the_last_one_began_gets_a_smaller_boost() -> void:
+	_start_slide(_tuning.slide_entry_speed)
+	# Jump out of the Slide and land with crouch held, half the cooldown after it began.
+	var entry := FORWARD * _tuning.slide_entry_speed
+	var frames := roundi(_tuning.slide_boost_cooldown / 2.0 / DELTA)
+	for frame: int in frames - 1:
+		_air_step(entry)
+	var velocity := _crouch_step(entry, FORWARD, true)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
+	var half_boost := _tuning.slide_entry_speed + _tuning.slide_boost / 2.0
+	# Below Run speed, so one frame of slow-slide friction already applied after the boost.
+	var expected := half_boost - _tuning.slow_slide_friction * DELTA
+	assert_float(_horizontal_speed(velocity)).is_equal_approx(expected, 0.05)
+
+
+func test_slide_hopping_on_flat_ground_never_exceeds_run_speed_plus_the_slide_boost() -> void:
+	var velocity := _run_past_the_boost_cooldown()
+	var height := 0.0
+	var landings := 0
+	var cap := _run_speed() + _tuning.slide_boost
+	for frame: int in roundi(6.0 / DELTA):
+		var on_floor := height <= 0.0
+		velocity = _movement.step(
+			FORWARD,
+			on_floor,
+			true,
+			true,
+			velocity,
+			on_floor,
+			Vector3.UP,
+			_tuning,
+			DELTA,
+		)
+		if on_floor:
+			landings += 1
+		height += velocity.y * DELTA
+		assert_float(_horizontal_speed(velocity)).is_less_equal(cap + 0.001)
+	# Several hops, each landing straight into a Slide.
+	assert_int(landings).is_greater(3)
