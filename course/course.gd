@@ -4,6 +4,8 @@ extends Level
 ## Course node's -Z. It begins with the start Section, with the Runner standing at its start.
 ## Runs the Attempt too: it ends when the Runner falls or Stalls, and the end screen appears. Jump
 ## or a click then starts a new Attempt: a fresh Runner on a freshly laid Course.
+## While the mouse isn't captured the Attempt pauses: the Runner, the Course and the Stall clock
+## stand still. The click that captures the mouse again resumes it.
 
 ## Emitted when the Attempt ends, by [param ending].
 signal attempt_ended(ending: Ending)
@@ -68,6 +70,8 @@ var _progress: Array[Vector2] = []
 var _distance := 0
 ## The Best distance: the greatest Distance of any Attempt, in whole metres.
 var _best_distance := 0
+## Whether the Attempt is paused, because the mouse isn't captured.
+var _paused := false
 
 var _runner: Runner
 
@@ -83,12 +87,21 @@ func _ready() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# While paused (or about to be, the capture having just gone), an input only ever captures the
+	# mouse again, which Level does: the capturing click is not also a retry. The Attempt resumes
+	# on the next physics frame, so the click is spent by then.
+	var pausing := _paused or not mouse.is_captured()
 	super(event)
+	if pausing:
+		return
 	if is_attempt_over() and _is_retry(event):
 		_start_attempt()
 
 
 func _physics_process(delta: float) -> void:
+	_set_paused(not mouse.is_captured())
+	if _paused:
+		return
 	_lay_ahead()
 	_free_behind()
 	if not is_attempt_over():
@@ -100,6 +113,11 @@ func _physics_process(delta: float) -> void:
 ## True once the Attempt has ended.
 func is_attempt_over() -> bool:
 	return _ending != Ending.NONE
+
+
+## True while the Attempt is paused, because the mouse isn't captured.
+func is_paused() -> bool:
+	return _paused
 
 
 ## How the Attempt ended; [constant Ending.NONE] while it runs.
@@ -155,6 +173,19 @@ func _start_attempt() -> void:
 	_replace_runner()
 	_lay(start_section)
 	_lay_ahead()
+
+
+## Pauses the Attempt if [param paused], resumes it if not: the Runner stands still while it is
+## paused, and responds again when it resumes, unless the Attempt is over.
+func _set_paused(paused: bool) -> void:
+	if paused == _paused:
+		return
+	_paused = paused
+	_hud.show_paused(paused)
+	if paused:
+		_runner.process_mode = Node.PROCESS_MODE_DISABLED
+	elif not is_attempt_over():
+		_runner.process_mode = Node.PROCESS_MODE_INHERIT
 
 
 ## Replaces the Runner, if there is one, with a fresh one standing at the start of the Course.
