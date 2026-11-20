@@ -39,7 +39,8 @@ func _physics_process(delta: float) -> void:
 	wish.y = 0.0
 	var on_floor := is_on_floor()
 	var floor_normal := get_floor_normal() if on_floor else Vector3.UP
-	velocity = _movement.step(wish, velocity, on_floor, floor_normal, tuning, delta)
+	var jump_pressed := Input.is_action_just_pressed("jump")
+	velocity = _movement.step(wish, jump_pressed, velocity, on_floor, floor_normal, tuning, delta)
 	move_and_slide()
 
 

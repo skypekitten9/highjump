@@ -9,26 +9,63 @@ const LEAVE_FLOOR_SPEED := 0.5
 ## Floor normals flatter than this (y component) are too steep to stand on or project onto.
 const MIN_FLOOR_NORMAL_Y := 0.1
 
+## Time left in which a jump still fires after leaving the floor, s.
+var _coyote_timer := 0.0
+## Time left in which a jump press is still waiting to fire, s.
+var _jump_buffer_timer := 0.0
+
 
 ## Returns the Runner's velocity for this physics frame.
 ## [param wish]: world-space horizontal move direction, length 0..1.
+## [param jump_pressed]: true only on the frame the jump was pressed, not while it is held.
 ## [param floor_normal]: the floor's normal; ignored when [param on_floor] is false.
 func step(
 	wish: Vector3,
+	jump_pressed: bool,
 	velocity: Vector3,
 	on_floor: bool,
 	floor_normal: Vector3,
 	tuning: RunnerTuning,
 	delta: float,
 ) -> Vector3:
+	var grounded := _is_grounded(velocity, on_floor, floor_normal)
+	_update_jump_timers(jump_pressed, grounded, tuning, delta)
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	if not _is_grounded(velocity, on_floor, floor_normal):
-		return Vector3(horizontal.x, velocity.y - tuning.gravity * delta, horizontal.z)
-	horizontal = _ground_horizontal(horizontal, wish, tuning, delta)
-	# Keep velocity in the floor plane (v . n = 0) without changing horizontal speed.
-	var n := floor_normal
-	var vertical := -(horizontal.x * n.x + horizontal.z * n.z) / n.y
+	var vertical: float
+	if grounded:
+		horizontal = _ground_horizontal(horizontal, wish, tuning, delta)
+		# Keep velocity in the floor plane (v . n = 0) without changing horizontal speed.
+		var n := floor_normal
+		vertical = -(horizontal.x * n.x + horizontal.z * n.z) / n.y
+	else:
+		horizontal = _air_horizontal(horizontal, wish, tuning, delta)
+		vertical = velocity.y - tuning.gravity * delta
+	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
+		vertical = maxf(vertical, sqrt(2.0 * tuning.gravity * tuning.jump_height))
+		clear_jump_timers()
 	return Vector3(horizontal.x, vertical, horizontal.z)
+
+
+## Forgets any waiting jump press and any coyote time. For mechanics that hand control back
+## (the Vault), so a stale press doesn't fire afterwards.
+func clear_jump_timers() -> void:
+	_coyote_timer = 0.0
+	_jump_buffer_timer = 0.0
+
+
+func _update_jump_timers(
+	jump_pressed: bool,
+	grounded: bool,
+	tuning: RunnerTuning,
+	delta: float,
+) -> void:
+	_jump_buffer_timer = maxf(_jump_buffer_timer - delta, 0.0)
+	if jump_pressed:
+		_jump_buffer_timer = tuning.jump_buffer_time
+	if grounded:
+		_coyote_timer = tuning.coyote_time
+	else:
+		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
 
 
 ## On the floor and not already leaving it, so the take-off frame isn't snapped back down.
@@ -51,3 +88,16 @@ func _ground_horizontal(
 	var limit := maxf(tuning.run_speed, horizontal.length() - tuning.overspeed_decay * delta)
 	var result := horizontal.move_toward(wish * limit, tuning.ground_accel * delta)
 	return result.limit_length(limit)
+
+
+## No drag in the air. Steering can turn speed above Run speed but never add to it.
+func _air_horizontal(
+	horizontal: Vector3,
+	wish: Vector3,
+	tuning: RunnerTuning,
+	delta: float,
+) -> Vector3:
+	if wish.is_zero_approx():
+		return horizontal
+	var limit := maxf(tuning.run_speed, horizontal.length())
+	return (horizontal + wish * tuning.air_accel * delta).limit_length(limit)

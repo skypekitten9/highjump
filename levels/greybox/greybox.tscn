@@ -145,4 +145,18 @@ use_collision = true
 size = Vector3(6, 4, 4)
 material = SubResource("StandardMaterial3D_block")
 
+[node name="Ledges" type="Node3D" parent="."]
+
+[node name="Ledge1m" type="CSGBox3D" parent="Ledges"]
+position = Vector3(-8, 0.5, 13)
+use_collision = true
+size = Vector3(4, 1, 3)
+material = SubResource("StandardMaterial3D_block")
+
+[node name="Ledge2m" type="CSGBox3D" parent="Ledges"]
+position = Vector3(-2, 1, 13)
+use_collision = true
+size = Vector3(4, 2, 3)
+material = SubResource("StandardMaterial3D_block")
+
 [node name="Runner" parent="." instance=ExtResource("1_runner")]

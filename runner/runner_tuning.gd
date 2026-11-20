@@ -11,8 +11,16 @@ extends Resource
 @export var ground_friction: float = 120.0
 ## How fast speed above Run speed fades on the ground while input is held, m/s^2.
 @export var overspeed_decay: float = 10.0
+## Air steering acceleration, m/s^2. Steering never raises speed above max(Run speed, current).
+@export var air_accel: float = 45.0
 ## Gravity, one value for both rising and falling, m/s^2.
 @export var gravity: float = 20.0
+## Height of the jump's peak above take-off, m. Launch speed is sqrt(2 * gravity * height).
+@export var jump_height: float = 1.2
+## A jump still fires this long after leaving the floor, s.
+@export var coyote_time: float = 0.1
+## A jump pressed this long before landing fires on landing, s.
+@export var jump_buffer_time: float = 0.1
 
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.
