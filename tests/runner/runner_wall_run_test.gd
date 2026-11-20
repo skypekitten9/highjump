@@ -40,7 +40,12 @@ func _in_air() -> RunnerMovement.Contact:
 
 ## Touching the wall in the air, or on the floor too if [param on_floor].
 func _on_wall(on_floor := false) -> RunnerMovement.Contact:
-	return RunnerMovement.Contact.new(on_floor, Vector3.UP, true, true, WALL_NORMAL, WALL_ID)
+	return RunnerMovement.Contact.new(on_floor, Vector3.UP, true, _wall(WALL_NORMAL, WALL_ID))
+
+
+## A surface with [param normal] and identity [param id] that may be a wall.
+func _wall(normal: Vector3, id: int) -> RunnerMovement.WallContact:
+	return RunnerMovement.WallContact.new(normal, id)
 
 
 ## Standing on flat floor, room to stand overhead.
@@ -118,7 +123,7 @@ func test_meeting_a_wall_on_the_floor_starts_no_wall_run() -> void:
 func test_a_surface_too_far_from_vertical_is_not_a_wall() -> void:
 	var tilt := deg_to_rad(_tuning.wall_max_tilt + 5.0)
 	var leaning := WALL_NORMAL.rotated(Vector3.FORWARD, tilt)
-	var contact := RunnerMovement.Contact.new(false, Vector3.UP, true, true, leaning, WALL_ID)
+	var contact := RunnerMovement.Contact.new(false, Vector3.UP, true, _wall(leaning, WALL_ID))
 	_meet_wall(_toward_wall(FAST, GLANCING), _moving(FORWARD), contact)
 	assert_bool(_is_wall_running()).is_false()
 
@@ -306,7 +311,7 @@ func test_a_jump_pressed_past_coyote_time_after_a_wall_run_does_not_jump() -> vo
 
 ## Touching a wall with [param id] and [param normal] in the air.
 func _on_other_wall(id: int, normal := WALL_NORMAL) -> RunnerMovement.Contact:
-	return RunnerMovement.Contact.new(false, Vector3.UP, true, true, normal, id)
+	return RunnerMovement.Contact.new(false, Vector3.UP, true, _wall(normal, id))
 
 
 ## Wall-runs the wall until it runs out, then flies on a frame. Returns the velocity.

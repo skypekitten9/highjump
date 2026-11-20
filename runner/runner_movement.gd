@@ -127,7 +127,7 @@ func _step_wall_run(
 		return _finish(jump, false, contact)
 	var next_normal := _next_wall_normal(grounded, contact, velocity)
 	if not next_normal.is_zero_approx():
-		_locked_wall_id = contact.wall_id
+		_locked_wall_id = contact.wall.id
 		return _finish(_wall_run(velocity, next_normal, delta), false, contact)
 	# Leaving the wall in the air starts a coyote time for a Wall-jump off it.
 	if not grounded:
@@ -333,7 +333,7 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 
 ## True if the Runner is in the air touching a surface near enough vertical to be a wall.
 func _touches_wall_in_air(contact: Contact, grounded: bool) -> bool:
-	return not grounded and contact.on_wall and is_wall(contact.wall_normal)
+	return not grounded and contact.wall != null and is_wall(contact.wall.normal)
 
 
 ## How head-on [param direction] meets a wall with horizontal unit [param normal], rad: 0 along
@@ -349,9 +349,9 @@ func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
 func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
 	if not _touches_wall_in_air(contact, grounded):
 		return false
-	if _wall_locked and contact.wall_id == _locked_wall_id:
+	if _wall_locked and contact.wall.id == _locked_wall_id:
 		return false
-	var normal := _horizontal_unit(contact.wall_normal)
+	var normal := _horizontal_unit(contact.wall.normal)
 	var horizontal := _before_wall_collision(velocity, normal)
 	var speed := horizontal.length()
 	if speed < _tuning.wall_run_entry_speed or is_zero_approx(speed):
@@ -371,11 +371,11 @@ func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, groun
 ## wall-run speed. A jump pressed before meeting the wall is forgotten, so the run isn't cut
 ## short by a Wall-jump as it starts.
 func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
-	var normal := _horizontal_unit(contact.wall_normal)
+	var normal := _horizontal_unit(contact.wall.normal)
 	var horizontal := _before_wall_collision(velocity, normal)
 	clear_jump_timers()
 	_wall_locked = true
-	_locked_wall_id = contact.wall_id
+	_locked_wall_id = contact.wall.id
 	_state = State.WALL_RUN
 	_slide_released = false
 	_wall_normal = normal
@@ -395,7 +395,7 @@ func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
 func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> Vector3:
 	if not _touches_wall_in_air(contact, grounded):
 		return Vector3.ZERO
-	var normal := _horizontal_unit(contact.wall_normal)
+	var normal := _horizontal_unit(contact.wall.normal)
 	var speed := _before_wall_collision(velocity, normal).dot(_wall_direction)
 	if speed < _tuning.wall_run_end_speed:
 		return Vector3.ZERO
@@ -509,27 +509,31 @@ class Contact:
 	## The standing body fits where the Runner is: always true while it stands; while it is low,
 	## whether it could stand up here.
 	var headroom: bool
-	## The body touches a surface that may be a wall; RunnerMovement decides whether it is near
-	## enough vertical to run.
-	var on_wall: bool
-	## That surface's normal; ignored when [member on_wall] is false.
-	var wall_normal: Vector3
-	## Tells walls apart: the same wall always has the same identity. Ignored when
-	## [member on_wall] is false.
-	var wall_id: int
+	## The surface that may be a wall the body touches, or null if it touches none.
+	var wall: WallContact
 
 
 	func _init(
 		p_on_floor: bool,
 		p_floor_normal := Vector3.UP,
 		p_headroom := true,
-		p_on_wall := false,
-		p_wall_normal := Vector3.ZERO,
-		p_wall_id := 0,
+		p_wall: WallContact = null,
 	) -> void:
 		on_floor = p_on_floor
 		floor_normal = p_floor_normal
 		headroom = p_headroom
-		on_wall = p_on_wall
-		wall_normal = p_wall_normal
-		wall_id = p_wall_id
+		wall = p_wall
+
+
+## A surface the Runner's body touches that may be a wall; RunnerMovement decides whether it is
+## near enough vertical to run.
+class WallContact:
+	## The surface's normal.
+	var normal: Vector3
+	## Tells walls apart: the same wall always has the same identity.
+	var id: int
+
+
+	func _init(p_normal: Vector3, p_id: int) -> void:
+		normal = p_normal
+		id = p_id

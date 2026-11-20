@@ -54,8 +54,12 @@ func _physics_process(delta: float) -> void:
 		Input.is_action_just_pressed("jump"),
 		Input.is_action_pressed("crouch"),
 	)
-	var contact := RunnerMovement.Contact.new(on_floor, floor_normal, _has_headroom())
-	_report_wall(contact)
+	var contact := RunnerMovement.Contact.new(
+		on_floor,
+		floor_normal,
+		_has_headroom(),
+		_touched_wall(),
+	)
 	velocity = _movement.step(intent, contact, velocity, delta)
 	_set_body_low(_movement.is_low())
 	move_and_slide()
@@ -82,10 +86,10 @@ func look(relative: Vector2) -> void:
 	)
 
 
-## Fills in the wall the body touches: the most nearly vertical wall the last move collided with,
-## or else, during a Wall-run, the wall found by a short probe toward the wall being run. Floors
-## and ceilings the move hit are left out, so bumping one doesn't end a Wall-run.
-func _report_wall(contact: RunnerMovement.Contact) -> void:
+## The wall the body touches: the most nearly vertical wall the last move collided with, or else,
+## during a Wall-run, the wall found by a short probe toward the wall being run; null if none.
+## Floors and ceilings the move hit are left out, so bumping one doesn't end a Wall-run.
+func _touched_wall() -> RunnerMovement.WallContact:
 	var steepest: KinematicCollision3D = null
 	for index: int in get_slide_collision_count():
 		var collision := get_slide_collision(index)
@@ -94,22 +98,19 @@ func _report_wall(contact: RunnerMovement.Contact) -> void:
 		if steepest == null or absf(collision.get_normal().y) < absf(steepest.get_normal().y):
 			steepest = collision
 	if steepest != null:
-		contact.on_wall = true
-		contact.wall_normal = steepest.get_normal()
-		contact.wall_id = steepest.get_collider_id()
-		return
+		return RunnerMovement.WallContact.new(steepest.get_normal(), steepest.get_collider_id())
 	var wall_normal := _movement.wall_normal()
 	if wall_normal.is_zero_approx():
-		return
+		return null
 	var from := global_position + Vector3.UP * (_capsule.height / 2.0)
 	var to := from - wall_normal * (_capsule.radius + tuning.wall_probe_reach)
 	var ray := PhysicsRayQueryParameters3D.create(from, to, collision_mask, [get_rid()])
 	var hit := get_world_3d().direct_space_state.intersect_ray(ray)
 	if hit.is_empty():
-		return
-	contact.on_wall = true
-	contact.wall_normal = hit["normal"]
-	contact.wall_id = hit["collider_id"]
+		return null
+	var normal: Vector3 = hit["normal"]
+	var id: int = hit["collider_id"]
+	return RunnerMovement.WallContact.new(normal, id)
 
 
 ## Shrinks or grows the body from the top, so the feet stay put.
