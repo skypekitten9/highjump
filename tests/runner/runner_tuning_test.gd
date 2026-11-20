@@ -94,3 +94,11 @@ func test_mantle_values_set_outside_the_inspector_stay_in_bounds() -> void:
 	assert_float(tuning.mantle_input_angle).is_equal(0.0)
 	tuning.mantle_input_angle = 120.0
 	assert_float(tuning.mantle_input_angle).is_equal(90.0)
+
+
+func test_mantle_camera_dip_set_outside_the_inspector_stays_in_bounds() -> void:
+	var tuning := RunnerTuning.new()
+	tuning.mantle_camera_dip = -5.0
+	assert_float(tuning.mantle_camera_dip).is_equal(0.0)
+	tuning.mantle_camera_dip = 60.0
+	assert_float(tuning.mantle_camera_dip).is_equal(45.0)
