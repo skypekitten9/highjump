@@ -1,0 +1,29 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://course/course.gd" id="1_course"]
+[ext_resource type="PackedScene" path="res://runner/runner.tscn" id="2_runner"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+
+[sub_resource type="Sky" id="Sky_sky"]
+sky_material = SubResource("ProceduralSkyMaterial_sky")
+
+[sub_resource type="Environment" id="Environment_env"]
+background_mode = 2
+sky = SubResource("Sky_sky")
+tonemap_mode = 2
+
+[node name="Course" type="Node3D"]
+script = ExtResource("1_course")
+
+[node name="Environment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+rotation_degrees = Vector3(-55, 30, 0)
+shadow_enabled = true
+
+[node name="Sections" type="Node3D" parent="."]
+
+[node name="Runner" parent="." instance=ExtResource("2_runner")]
+position = Vector3(0, 0, -2)
