@@ -65,63 +65,10 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
 	if _state == State.WALL_RUN:
-		if _jump_buffer_timer > 0.0 and not grounded:
-			var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-			var jump := _wall_jump(horizontal, _wall_normal)
-			return _finish(jump, false, contact)
-		var next_normal := _next_wall_normal(grounded, contact, velocity)
-		if not next_normal.is_zero_approx():
-			_locked_wall_id = contact.wall_id
-			return _finish(_wall_run(velocity, next_normal, delta), false, contact)
-		# Ends keeping its velocity; a landing goes on through the ground states below. Leaving
-		# the wall in the air starts a coyote time for a Wall-jump off it.
-		if not grounded:
-			_coyote_timer = _tuning.coyote_time
-			_coyote_wall_normal = _wall_normal
-		_go_airborne()
-	elif _starts_wall_run(intent, contact, velocity, grounded):
+		return _step_wall_run(intent, contact, velocity, grounded, delta)
+	if _starts_wall_run(intent, contact, velocity, grounded):
 		return _finish(_start_wall_run(contact, velocity), false, contact)
-	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	var vertical: float
-	if grounded:
-		horizontal = _update_ground_state(horizontal, intent.crouch_held, contact.headroom)
-		match _state:
-			State.SLIDE:
-				horizontal = _slide_horizontal(
-					horizontal,
-					intent.move_direction,
-					contact.floor_normal,
-					delta,
-				)
-				_end_slide_if_slow(horizontal.length(), contact.headroom)
-			State.CROUCH:
-				horizontal = _ground_horizontal(
-					horizontal,
-					intent.move_direction,
-					_tuning.crouch_speed,
-					delta,
-				)
-			_:
-				horizontal = _ground_horizontal(
-					horizontal,
-					intent.move_direction,
-					_tuning.run_speed,
-					delta,
-				)
-		vertical = _along_floor(horizontal, contact.floor_normal)
-	else:
-		_go_airborne()
-		horizontal = _air_horizontal(horizontal, intent.move_direction, delta)
-		vertical = velocity.y - _tuning.gravity * delta
-	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
-		if not _coyote_wall_normal.is_zero_approx():
-			var jump := _wall_jump(horizontal, _coyote_wall_normal)
-			return _finish(jump, false, contact)
-		vertical = maxf(vertical, _launch_speed())
-		clear_jump_timers()
-		grounded = false
-		_go_airborne()
-	return _finish(Vector3(horizontal.x, vertical, horizontal.z), grounded, contact)
+	return _step_off_wall(intent, contact, velocity, grounded, delta)
 
 
 ## True if the last step kept the Runner on the floor (it neither was airborne nor jumped),
@@ -163,6 +110,82 @@ func is_low() -> bool:
 func clear_jump_timers() -> void:
 	_coyote_timer = 0.0
 	_jump_buffer_timer = 0.0
+
+
+## A step in a Wall-run: a waiting jump is a Wall-jump; otherwise the run goes on along the wall,
+## or ends keeping its velocity and the Runner moves as it would off the wall, so a landing goes
+## on through the ground states.
+func _step_wall_run(
+	intent: Intent,
+	contact: Contact,
+	velocity: Vector3,
+	grounded: bool,
+	delta: float,
+) -> Vector3:
+	if _jump_buffer_timer > 0.0 and not grounded:
+		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
+		return _finish(jump, false, contact)
+	var next_normal := _next_wall_normal(grounded, contact, velocity)
+	if not next_normal.is_zero_approx():
+		_locked_wall_id = contact.wall_id
+		return _finish(_wall_run(velocity, next_normal, delta), false, contact)
+	# Leaving the wall in the air starts a coyote time for a Wall-jump off it.
+	if not grounded:
+		_coyote_timer = _tuning.coyote_time
+		_coyote_wall_normal = _wall_normal
+	_go_airborne()
+	return _step_off_wall(intent, contact, velocity, grounded, delta)
+
+
+## A step on the ground or in the air, jumping if a jump is waiting and allowed.
+func _step_off_wall(
+	intent: Intent,
+	contact: Contact,
+	velocity: Vector3,
+	grounded: bool,
+	delta: float,
+) -> Vector3:
+	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
+	var vertical: float
+	if grounded:
+		horizontal = _update_ground_state(horizontal, intent.crouch_held, contact.headroom)
+		match _state:
+			State.SLIDE:
+				horizontal = _slide_horizontal(
+					horizontal,
+					intent.move_direction,
+					contact.floor_normal,
+					delta,
+				)
+				_end_slide_if_slow(horizontal.length(), contact.headroom)
+			State.CROUCH:
+				horizontal = _ground_horizontal(
+					horizontal,
+					intent.move_direction,
+					_tuning.crouch_speed,
+					delta,
+				)
+			_:
+				horizontal = _ground_horizontal(
+					horizontal,
+					intent.move_direction,
+					_tuning.run_speed,
+					delta,
+				)
+		vertical = _along_floor(horizontal, contact.floor_normal)
+	else:
+		_go_airborne()
+		horizontal = _air_horizontal(horizontal, intent.move_direction, delta)
+		vertical = velocity.y - _tuning.gravity * delta
+	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
+		if not _coyote_wall_normal.is_zero_approx():
+			var jump := _wall_jump(horizontal, _coyote_wall_normal)
+			return _finish(jump, false, contact)
+		vertical = maxf(vertical, _launch_speed())
+		clear_jump_timers()
+		grounded = false
+		_go_airborne()
+	return _finish(Vector3(horizontal.x, vertical, horizontal.z), grounded, contact)
 
 
 ## Records what this step decided and returns [param velocity].
