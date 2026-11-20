@@ -140,6 +140,13 @@ func wall_normal() -> Vector3:
 	return _wall_normal if _state == State.WALL_RUN else Vector3.ZERO
 
 
+## True if a surface with [param normal] is near enough vertical to be a wall.
+func is_wall(normal: Vector3) -> bool:
+	if Vector2(normal.x, normal.z).is_zero_approx():
+		return false
+	return absf(normal.normalized().y) <= sin(deg_to_rad(_tuning.wall_max_tilt))
+
+
 ## True if the last step was a Slide that carries on after crouch was released.
 func is_slide_released() -> bool:
 	return _state == State.SLIDE and _slide_released
@@ -306,7 +313,7 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 ## since the Runner landed. Speed is measured before the collision took away the speed going
 ## into the wall.
 func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
-	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
+	if grounded or not contact.on_wall or not is_wall(contact.wall_normal):
 		return false
 	if _wall_locked and contact.wall_id == _locked_wall_id:
 		return false
@@ -353,7 +360,7 @@ func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
 ## goes on only onto a wall blocking the run within the maximum entry angle (an inside corner);
 ## a sharper turn away is an outside corner.
 func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> Vector3:
-	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
+	if grounded or not contact.on_wall or not is_wall(contact.wall_normal):
 		return Vector3.ZERO
 	var normal := _horizontal_unit(contact.wall_normal)
 	var speed := _before_wall_collision(velocity, normal).dot(_wall_direction)
@@ -391,13 +398,6 @@ func _wall_jump(horizontal: Vector3, normal: Vector3) -> Vector3:
 ## Upward speed of a jump, m/s.
 func _launch_speed() -> float:
 	return sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
-
-
-## True if a surface with [param normal] is near enough vertical to be a wall.
-func _is_wall(normal: Vector3) -> bool:
-	if Vector2(normal.x, normal.z).is_zero_approx():
-		return false
-	return absf(normal.normalized().y) <= sin(deg_to_rad(_tuning.wall_max_tilt))
 
 
 ## Horizontal velocity as it was before the engine's collision with the wall of [param normal]

@@ -422,3 +422,44 @@ func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
 	assert_float(run_end.x).is_equal_approx(WALL_FACE_X - RUNNER_RADIUS, 0.05)
 	assert_bool(runner.is_on_floor()).is_true()
 	assert_bool(runner.is_wall_running()).is_false()
+
+
+## Jumps at the wall in [param world] at 20 degrees and Wall-runs along it, holding forward.
+## Returns the scene runner once the jump has been pressed.
+func _jump_at_wall(world: Node3D, runner: Runner) -> GdUnitSceneRunner:
+	runner.rotate_y(deg_to_rad(-20.0))
+	var scene := scene_runner(world)
+	await scene.simulate_frames(10, 16)
+	Input.action_press("move_forward")
+	await scene.simulate_frames(10, 16)
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	return scene
+
+
+func test_bumping_a_ceiling_during_a_wall_run_does_not_end_it() -> void:
+	var world := _world_with_wall()
+	# Low enough over the middle of the run for the top of the body to hit it.
+	var ceiling := CSGBox3D.new()
+	ceiling.size = Vector3(4.0, 0.5, 17.5)
+	ceiling.position = Vector3(WALL_FACE_X - 2.0, 3.55, -11.25)
+	ceiling.use_collision = true
+	world.add_child(ceiling)
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	var ran := false
+	var bumped := false
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			ran = true
+			for index: int in runner.get_slide_collision_count():
+				bumped = bumped or runner.get_slide_collision(index).get_normal().y < -0.9
+		elif ran:
+			break
+
+	assert_bool(bumped).is_true()
+	# The run went on until it landed.
+	assert_bool(runner.is_on_floor()).is_true()

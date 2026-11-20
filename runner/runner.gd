@@ -74,12 +74,15 @@ func is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
 
 
-## Fills in the wall the body touches: the most nearly vertical surface the last move collided
-## with, or else, during a Wall-run, the wall found by a short probe toward the wall being run.
+## Fills in the wall the body touches: the most nearly vertical wall the last move collided with,
+## or else, during a Wall-run, the wall found by a short probe toward the wall being run. Floors
+## and ceilings the move hit are left out, so bumping one doesn't end a Wall-run.
 func _report_wall(contact: RunnerMovement.Contact) -> void:
 	var steepest: KinematicCollision3D = null
 	for index: int in get_slide_collision_count():
 		var collision := get_slide_collision(index)
+		if not _movement.is_wall(collision.get_normal()):
+			continue
 		if steepest == null or absf(collision.get_normal().y) < absf(steepest.get_normal().y):
 			steepest = collision
 	if steepest != null:
