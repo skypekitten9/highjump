@@ -36,6 +36,33 @@ func _world_with_floor() -> Node3D:
 	return world
 
 
+func test_moving_the_free_mouse_does_not_turn_the_camera() -> void:
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	var world := _world_with_floor()
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(1, 16)
+	var facing := runner.get_viewport().get_camera_3d().global_basis
+
+	var motion := InputEventMouseMotion.new()
+	motion.relative = Vector2(200.0, 150.0)
+	Input.parse_input_event(motion)
+	await scene.simulate_frames(2, 16)
+
+	var camera := runner.get_viewport().get_camera_3d().global_basis
+	assert_bool(camera.is_equal_approx(facing)).is_true()
+
+
+## Creating a Runner leaves the mouse mode as it was: whatever holds the Runner owns capture. The
+## headless display server ignores mouse modes (setting one reads back as visible), so this
+## checks that the Runner script never assigns one.
+func test_the_runner_never_sets_the_mouse_mode() -> void:
+	var source := (load("res://runner/runner.gd") as GDScript).source_code
+	var assigns_mouse_mode := RegEx.create_from_string(r"mouse_mode\s*=[^=]")
+
+	assert_object(assigns_mouse_mode.search(source)).is_null()
+
+
 func test_runner_placed_above_the_floor_falls_and_lands() -> void:
 	var world := _world_with_floor()
 	var runner: Runner = RunnerScene.instantiate()
