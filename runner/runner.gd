@@ -84,6 +84,11 @@ func is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
 
 
+## True if the Runner is in a Mantle.
+func is_mantling() -> bool:
+	return _movement.state() == RunnerMovement.State.MANTLE
+
+
 ## The ledge ahead in [param direction]: a face near enough vertical to be a wall, just ahead
 ## of the body, whose top is above the feet and within Mantle reach. Null if there is none, or
 ## no direction. Looks down onto the top a body radius inside the edge, from the first height up

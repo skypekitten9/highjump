@@ -136,9 +136,10 @@ func clear_jump_timers() -> void:
 	_jump_buffer_timer = 0.0
 
 
-## A step in a Wall-run: a waiting jump is a Wall-jump; otherwise the run goes on along the wall,
-## or ends keeping its velocity and the Runner moves as it would off the wall, so a landing goes
-## on through the ground states.
+## A step in a Wall-run: a waiting jump is a Wall-jump; steering into the wall with its top
+## within reach Mantles onto it; otherwise the run goes on along the wall, or ends keeping its
+## velocity and the Runner moves as it would off the wall, so a landing goes on through the
+## ground states.
 func _step_wall_run(
 	intent: Intent,
 	contact: Contact,
@@ -149,6 +150,8 @@ func _step_wall_run(
 	if _jump_buffer_timer > 0.0 and not grounded:
 		var jump := _wall_jump(Vector3(velocity.x, 0.0, velocity.z), _wall_normal)
 		return _finish(jump, false, contact)
+	if _starts_mantle(intent, contact, grounded):
+		return _finish(_start_mantle(contact, velocity), false, contact)
 	var next_normal := _next_wall_normal(grounded, contact, velocity)
 	if not next_normal.is_zero_approx():
 		_locked_wall_id = contact.wall.id

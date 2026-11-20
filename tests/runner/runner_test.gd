@@ -28,6 +28,7 @@ func before_test() -> void:
 
 func after_test() -> void:
 	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	Input.action_release("crouch")
 	Input.action_release("jump")
 
@@ -297,6 +298,7 @@ func _crouch_under_ceiling_then_walk_clear(csg: bool) -> void:
 		if runner.position.z < CEILING_FAR_EDGE / 2.0:
 			break
 	Input.action_release("move_forward")
+	Input.action_release("move_right")
 	Input.action_release("crouch")
 	await scene.simulate_frames(30, 16)
 	# Got under, and stays low there with crouch released.
@@ -809,3 +811,42 @@ func test_jumping_into_a_box_with_room_only_to_crouch_on_top_mantles_into_a_crou
 	assert_float(runner.position.y).is_equal_approx(top, 0.05)
 	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
 	assert_float(_body_top(runner)).is_equal_approx(_tuning.crouch_height, 0.02)
+
+
+func test_steering_into_a_low_wall_during_a_wall_run_mantles_onto_its_top() -> void:
+	# Tall enough to run along from a jump, its top within Mantle reach during the run.
+	var top := 2.2
+	var world := _world_with_floor()
+	var thickness := 3.0
+	_add_csg_box(
+		world,
+		Vector3(thickness, top, 60.0),
+		Vector3(WALL_FACE_X + thickness / 2.0, top / 2.0, -20.0),
+	)
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+
+	var running_frames := 0
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			running_frames += 1
+			if running_frames == 5:
+				break
+	assert_int(running_frames).is_equal(5)
+	var speed_along := -runner.velocity.z
+	# Steer into the wall, on the Runner's right: the run turns straight into a Mantle.
+	Input.action_press("move_right")
+	await scene.simulate_frames(1, 16)
+	assert_bool(runner.is_mantling()).is_true()
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		if runner.is_on_floor():
+			break
+	Input.action_release("move_right")
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.x).is_greater(WALL_FACE_X + RUNNER_RADIUS)
+	# Still heading on along the wall, fast.
+	assert_float(-runner.velocity.z).is_greater(speed_along * 0.5)
