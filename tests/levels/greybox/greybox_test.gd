@@ -154,13 +154,17 @@ func test_wall_jumps_holding_forward_zig_zag_across_the_wall_run_gap_gaining_spe
 	var scene := _run_with_runner_at(level, "PlaytestCourse/WallRun/SlideStart")
 	var runner := _runner_of(level)
 	var area := level.get_node("PlaytestCourse/WallRun") as Node3D
-	# On the floor midway between the walls, just before they begin, facing along them.
-	runner.global_position = area.to_global(Vector3(20.0, 0.0, 0.0))
+	# On the floor midway between the walls, a little past where they begin, facing along them,
+	# so the first jump meets a wall however far the run-up goes.
+	runner.global_position = area.to_global(Vector3(24.0, 0.0, 0.0))
 	await scene.simulate_frames(10, 16)
 
-	# Run up to speed, then jump toward the right-hand wall.
+	# Run up to Run speed, then jump toward the right-hand wall.
 	Input.action_press("move_forward")
-	await scene.simulate_frames(6, 16)
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		if _horizontal_speed(runner) >= _tuning.run_speed * 0.95:
+			break
 	Input.action_press("move_right")
 	Input.action_press("jump")
 	await scene.simulate_frames(1, 16)
@@ -184,8 +188,10 @@ func test_wall_jumps_holding_forward_zig_zag_across_the_wall_run_gap_gaining_spe
 		if runner.is_on_floor() and not speeds.is_empty():
 			break
 
-	# The first wall and at least three crossings, each to the other wall and faster.
-	assert_int(speeds.size()).is_greater_equal(4)
+	# The first wall and at least two crossings, each to the other wall and faster. Each
+	# Wall-jump climbs, so after three crossings the Runner goes over the top of a wall; a
+	# Wall-jump a few frames later makes only two.
+	assert_int(speeds.size()).is_greater_equal(3)
 	for index: int in range(1, speeds.size()):
 		assert_float(sides[index]).is_equal(-sides[index - 1])
 		assert_float(speeds[index]).is_greater(speeds[index - 1])
