@@ -25,8 +25,8 @@ const MIN_FLOOR_NORMAL_Y := 0.1
 const MANTLE_TIME_LIMIT := 1.0
 
 var _tuning: RunnerTuning
-## Height of the Runner's standing body, m. A ledge with less clear height on top has no room to
-## stand.
+## Height of the Runner's standing body, m. A ledge with less clear height on top has room only
+## to crouch.
 var _standing_height: float
 var _state := State.RUN
 ## True if the body is low after the last step.
@@ -67,10 +67,13 @@ var _mantle_horizontal := Vector3.ZERO
 var _mantle_top_above_feet := 0.0
 ## Time since the Mantle began, s.
 var _mantle_time := 0.0
+## True if the Mantle's top has room only for the crouched body, so the body stays low through
+## the leap. Meaningful only in a Mantle.
+var _mantle_low := false
 
 
 ## [param standing_height] is the height of the Runner's standing body, m. Left at INF, no
-## ledge has room to stand, so no Mantle starts.
+## ledge has room to stand, so every Mantle is a crouched one.
 func _init(tuning: RunnerTuning, standing_height := INF) -> void:
 	_tuning = tuning
 	_standing_height = standing_height
@@ -212,9 +215,13 @@ func _step_off_wall(
 ## Records what this step decided and returns [param velocity].
 func _finish(velocity: Vector3, grounded: bool, contact: Contact) -> Vector3:
 	_last_floor_normal = contact.floor_normal if grounded else Vector3.ZERO
-	# A Slide or a Crouch is low. Otherwise a body already low stays low until there is room to
-	# stand, even in the air, so it never stands up into a ceiling.
-	_low = _state == State.SLIDE or _state == State.CROUCH or (_low and not contact.headroom)
+	# A Slide, a Crouch and a Mantle onto a top with room only to crouch are low. Otherwise a body
+	# already low stays low until there is room to stand, even in the air, so it never stands up
+	# into a ceiling.
+	_low = (
+		_state == State.SLIDE or _state == State.CROUCH
+		or (_state == State.MANTLE and _mantle_low) or (_low and not contact.headroom)
+	)
 	_last_velocity = velocity
 	return velocity
 
@@ -365,7 +372,8 @@ func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
 
 ## True if the Runner, in the air, has a ledge ahead it can Mantle onto: its face is near enough
 ## vertical to be a wall, the Player holds a direction within the Mantle input angle of straight
-## into it, its top is above the feet and within Mantle reach, and the standing body fits on it.
+## into it, its top is above the feet and within Mantle reach, and at least the crouched body
+## fits on it.
 func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
 	var ledge := contact.ledge
 	if grounded or ledge == null or not is_wall(ledge.normal):
@@ -377,16 +385,17 @@ func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
 		return false
 	if ledge.top_height <= 0.0 or ledge.top_height > _tuning.mantle_reach:
 		return false
-	return ledge.clear_height >= _standing_height
+	return ledge.clear_height >= _tuning.crouch_height
 
 
 ## Starts a Mantle's leap: upward speed is lifted, never lowered, to just enough for the arc to
 ## peak the Mantle clearance above the top under the leap gravity. Horizontal velocity is fixed
 ## for the leap: the speed along the face, plus a part into it of at least the Mantle inward
 ## speed, at all the speed there was before the face took any, and at least Run speed (see
-## docs/adr/0007).
+## docs/adr/0007). A top with room only to crouch takes the body low for the whole leap.
 func _start_mantle(contact: Contact, velocity: Vector3) -> Vector3:
 	_state = State.MANTLE
+	_mantle_low = contact.ledge.clear_height < _standing_height
 	_slide_released = false
 	_mantle_time = 0.0
 	_mantle_top_above_feet = contact.ledge.top_height

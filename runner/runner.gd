@@ -86,8 +86,11 @@ func is_wall_running() -> bool:
 
 ## The ledge ahead in [param direction]: a face near enough vertical to be a wall, just ahead
 ## of the body, whose top is above the feet and within Mantle reach. Null if there is none, or
-## no direction. Looks onto the top a body radius inside the edge, and measures the room above
-## it with a ray (a shape overlap query misses CSG and trimesh ceilings).
+## no direction. Looks down onto the top a body radius inside the edge, from the first height up
+## the face where the way ahead is open, so a ceiling over the top isn't taken for the top. Then
+## measures the room above the top with a ray, and finds nothing if the body, as it is now,
+## can't rise straight up until its feet are level with the top (a shape overlap query misses
+## CSG and trimesh ceilings).
 func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 	var heading := Vector3(direction.x, 0.0, direction.z)
 	if heading.is_zero_approx():
@@ -99,13 +102,16 @@ func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 	var face_point: Vector3 = face["position"]
 	var inside := face_point - Vector3(normal.x, 0.0, normal.z).normalized() * _capsule.radius
 	var feet := global_position.y
+	var opening: float = face["opening"]
 	var top_hit := _cast(
-		Vector3(inside.x, feet + tuning.mantle_reach, inside.z),
+		Vector3(inside.x, feet + opening, inside.z),
 		Vector3(inside.x, feet + LEDGE_MIN_TOP, inside.z),
 	)
 	if top_hit.is_empty() or (top_hit["normal"] as Vector3).y < cos(floor_max_angle):
 		return null
 	var top: Vector3 = top_hit["position"]
+	if test_move(global_transform, Vector3.UP * (top.y - feet)):
+		return null
 	var above := _cast(top, top + Vector3.UP * _standing_height)
 	var clear := INF if above.is_empty() else (above["position"] as Vector3).y - top.y
 	return RunnerMovement.LedgeContact.new(normal, top.y - feet, clear)
@@ -150,16 +156,25 @@ func _touched_wall() -> RunnerMovement.WallContact:
 
 
 ## The lowest hit of rays cast along [param heading] from the body's axis, from just above the
-## feet up to Mantle reach, on a face near enough vertical to be a wall; empty if none.
+## feet up to Mantle reach, on a face near enough vertical to be a wall; empty if none. Its
+## "opening" is the height above the feet of the first ray above that hit that finds nothing,
+## capped at Mantle reach: the face's top is below it.
 func _ledge_face(heading: Vector3) -> Dictionary:
+	var face := { }
 	var height := LEDGE_PROBE_SPACING / 2.0
 	while height <= tuning.mantle_reach:
 		var from := global_position + Vector3.UP * height
 		var hit := _cast(from, from + heading * (_capsule.radius + LEDGE_PROBE_AHEAD))
-		if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
-			return hit
+		if face.is_empty():
+			if not hit.is_empty() and _movement.is_wall(hit["normal"] as Vector3):
+				face = hit
+		elif hit.is_empty():
+			face["opening"] = height
+			return face
 		height += LEDGE_PROBE_SPACING
-	return { }
+	if not face.is_empty():
+		face["opening"] = tuning.mantle_reach
+	return face
 
 
 ## The first thing a ray from [param from] to [param to] hits, other than the Runner; empty if

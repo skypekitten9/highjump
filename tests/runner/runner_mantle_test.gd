@@ -109,11 +109,21 @@ func test_a_face_too_far_from_vertical_starts_no_mantle() -> void:
 	assert_bool(_is_mantling()).is_false()
 
 
-func test_a_top_without_room_to_stand_starts_no_mantle() -> void:
-	var ledge := RunnerMovement.LedgeContact.new(FACE_NORMAL, TOP, STANDING_HEIGHT - 0.1)
-	var contact := RunnerMovement.Contact.new(false, Vector3.UP, true, null, ledge)
-	_movement.step(_moving(FORWARD), contact, Vector3.ZERO, DELTA)
-	assert_bool(_is_mantling()).is_false()
+## In the air with a ledge ahead whose top has [param clear] m of room above it.
+func _at_ledge_with_room(clear: float) -> RunnerMovement.Contact:
+	var ledge := RunnerMovement.LedgeContact.new(FACE_NORMAL, TOP, clear)
+	return RunnerMovement.Contact.new(false, Vector3.UP, true, null, ledge)
+
+
+func test_a_top_with_room_only_to_crouch_mantles_with_the_body_low() -> void:
+	_movement.step(
+		_moving(FORWARD),
+		_at_ledge_with_room(STANDING_HEIGHT - 0.1),
+		Vector3.ZERO,
+		DELTA,
+	)
+	assert_bool(_is_mantling()).is_true()
+	assert_bool(_movement.is_low()).is_true()
 
 
 func test_a_mantle_from_a_standstill_lifts_the_leap_just_enough_to_clear_the_top() -> void:
@@ -227,3 +237,40 @@ func test_a_top_with_room_to_stand_starts_a_mantle() -> void:
 	var contact := RunnerMovement.Contact.new(false, Vector3.UP, true, null, ledge)
 	_movement.step(_moving(FORWARD), contact, Vector3.ZERO, DELTA)
 	assert_bool(_is_mantling()).is_true()
+	assert_bool(_movement.is_low()).is_false()
+
+
+func test_a_top_without_room_for_the_crouched_body_starts_no_mantle() -> void:
+	var contact := _at_ledge_with_room(_tuning.crouch_height - 0.05)
+	_movement.step(_moving(FORWARD), contact, Vector3.ZERO, DELTA)
+	assert_bool(_is_mantling()).is_false()
+
+
+## Starts a Mantle onto a top with room only to crouch, and returns the leap's first velocity.
+func _start_crouched_mantle() -> Vector3:
+	var contact := _at_ledge_with_room(STANDING_HEIGHT - 0.1)
+	return _movement.step(_moving(FORWARD), contact, Vector3.ZERO, DELTA)
+
+
+func test_a_crouched_mantle_keeps_the_body_low_through_the_leap() -> void:
+	var velocity := _start_crouched_mantle()
+	# Beside the face, below the top, there is room to stand.
+	for frame: int in 10:
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+		assert_bool(_movement.is_low()).is_true()
+	assert_bool(_is_mantling()).is_true()
+
+
+func test_a_crouched_mantle_lands_in_a_crouch_that_stands_once_there_is_headroom() -> void:
+	var velocity := _start_crouched_mantle()
+	for frame: int in 5:
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	velocity.y = 0.0
+	var under_ceiling := RunnerMovement.Contact.new(true, Vector3.UP, false)
+	velocity = _movement.step(_moving(FORWARD), under_ceiling, velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.CROUCH)
+	assert_bool(_movement.is_low()).is_true()
+
+	_movement.step(_moving(FORWARD), RunnerMovement.Contact.new(true), velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.RUN)
+	assert_bool(_movement.is_low()).is_false()

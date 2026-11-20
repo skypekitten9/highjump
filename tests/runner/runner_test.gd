@@ -720,3 +720,92 @@ func test_jumping_into_a_box_too_high_to_jump_onto_mantles_onto_it() -> void:
 	assert_bool(runner.is_on_floor()).is_true()
 	assert_float(runner.position.y).is_equal_approx(top, 0.05)
 	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
+
+
+## Adds a CSG box with collision of [param size], centered at [param center], to [param world].
+func _add_csg_box(world: Node3D, size: Vector3, center: Vector3) -> void:
+	var box := CSGBox3D.new()
+	box.size = size
+	box.position = center
+	box.use_collision = true
+	world.add_child(box)
+
+
+## The box of [method _world_with_box] with a CSG slab over its whole top, its underside
+## [param room] above the top. The slab's front is flush with the box's face.
+func _world_with_ceiling_over_box(top: float, room: float) -> Node3D:
+	var world := _world_with_box(top)
+	var thickness := 0.3
+	_add_csg_box(
+		world,
+		Vector3(4.0, thickness, 4.0),
+		Vector3(0.0, top + room + thickness / 2.0, BOX_FACE_Z - 2.0),
+	)
+	return world
+
+
+func test_the_ledge_probe_measures_the_room_under_a_ceiling_over_the_top() -> void:
+	# The slab's own top is within Mantle reach: the probe must not take it for the ledge's top.
+	var world := _world_with_ceiling_over_box(0.5, 0.7)
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	assert_float(ledge.top_height).is_equal_approx(0.5, 0.02)
+	assert_float(ledge.clear_height).is_equal_approx(0.7, 0.02)
+
+
+func test_the_ledge_probe_finds_nothing_on_a_top_too_thin_to_stand_on() -> void:
+	var world := _world_with_floor()
+	var thin := RUNNER_RADIUS * 0.6
+	_add_csg_box(world, Vector3(4.0, 1.0, thin), Vector3(0.0, 0.5, BOX_FACE_Z - thin / 2.0))
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+## The box of [method _world_with_box], its top 1 m up, with a CSG slab over the Runner's head
+## that stops at the box's face: the way up to the top is blocked.
+func _world_with_slab_over_runner() -> Node3D:
+	var world := _world_with_box(1.0)
+	var bottom := RUNNER_HEIGHT + 0.3
+	var size := Vector3(4.0, 0.3, 3.0)
+	_add_csg_box(world, size, Vector3(0.0, bottom + size.y / 2.0, BOX_FACE_Z + size.z / 2.0))
+	return world
+
+
+func test_the_ledge_probe_finds_nothing_when_something_overhead_blocks_the_way_up() -> void:
+	var world := _world_with_slab_over_runner()
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	assert_object(runner.find_ledge(Vector3.FORWARD)).is_null()
+
+
+func test_jumping_into_a_box_with_room_only_to_crouch_on_top_mantles_into_a_crouch() -> void:
+	var top := 1.0
+	var room := (_tuning.crouch_height + RUNNER_HEIGHT) / 2.0
+	var world := _world_with_ceiling_over_box(top, room)
+	var runner := _add_runner(world, 0.0)
+	var scene := scene_runner(world)
+	await scene.simulate_frames(5, 16)
+	Input.action_press("move_forward")
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+
+	for frame: int in 120:
+		await scene.simulate_frames(1, 16)
+		var on_top := runner.position.z < BOX_FACE_Z - RUNNER_RADIUS
+		if runner.is_on_floor() and (on_top or runner.position.y < 0.1):
+			break
+	Input.action_release("move_forward")
+	await scene.simulate_frames(5, 16)
+
+	assert_bool(runner.is_on_floor()).is_true()
+	assert_float(runner.position.y).is_equal_approx(top, 0.05)
+	assert_float(runner.position.z).is_less(BOX_FACE_Z - RUNNER_RADIUS)
+	assert_float(_body_top(runner)).is_equal_approx(_tuning.crouch_height, 0.02)
