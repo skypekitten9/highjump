@@ -13,3 +13,6 @@
 
 # Python
 __pycache__/
+
+# Web export (tools/export_web.py)
+/build/

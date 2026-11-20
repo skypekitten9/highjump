@@ -33,7 +33,7 @@ jobs:
           path: |
             ~/godot
             .tools
-          key: tools-${{ runner.os }}-${{ steps.godot.outputs.version }}-${{ hashFiles('tools/check.py') }}
+          key: tools-${{ runner.os }}-${{ steps.godot.outputs.version }}-${{ hashFiles('tools/check.py', 'tools/export_web.py') }}
 
       - name: Install Godot ${{ steps.godot.outputs.version }}
         env:
@@ -51,6 +51,16 @@ jobs:
       - name: Run all checks
         run: python tools/check.py
 
+      # On PRs too, so a change that breaks the web export fails before it reaches main.
+      - name: Export for the web
+        run: python tools/export_web.py
+
+      - name: Upload web build for GitHub Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: build/web
+
       - name: Upload test report
         if: failure()
         uses: actions/upload-artifact@v7
@@ -58,3 +68,24 @@ jobs:
           name: gdunit-report
           path: reports/
           if-no-files-found: ignore
+
+  # Publishes the web build of every main commit that passes all checks.
+  deploy-web:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      pages: write
+      id-token: write
+    # Only the newest main commit publishes; an older deploy still running is cancelled.
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5

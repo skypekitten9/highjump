@@ -18,6 +18,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("release_mouse"):
 		mouse_captured = false
 		return
+	# Checks the real mouse mode, not mouse_captured: in a browser the capture at play start is
+	# refused (pointer lock needs a click first) and Esc drops it without telling the level.
 	var click := event as InputEventMouseButton
-	if click and click.pressed and not mouse_captured:
+	if click and click.pressed and Input.mouse_mode != Input.MOUSE_MODE_CAPTURED:
 		mouse_captured = true

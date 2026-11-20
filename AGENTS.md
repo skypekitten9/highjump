@@ -6,6 +6,7 @@ A first-person movement game built with Godot 4.7 (GDScript only). Domain langua
 
 - **Feedback loop:** `python tools/check.py` runs the Godot version check, format check, lint and the full test suite. `--fix` formats files in place. Run it before declaring work done.
 - **Godot binary:** copy `.env.example` to `.env` and set `GODOT_BIN` to the Godot editor executable. A real `GODOT_BIN` environment variable overrides `.env`; with neither, `godot` on `PATH` is used.
+- **Web build:** every `main` commit that passes CI is deployed to https://skypekitten9.github.io/highjump/ by the `deploy-web` job in `.github/workflows/check.yml`. `python tools/export_web.py` builds the same export into `build/web/`; serve it with `python -m http.server -d build/web`.
 - **Git hooks:** run `git config core.hooksPath .githooks` once per clone. `pre-commit` checks formatting and lint of staged GDScript; `pre-push` blocks direct pushes to `main`, then runs the full `tools/check.py` (including all tests).
 - **Layout:** files are grouped by feature (`res://player/`, `res://movement/...`), each scene beside its script. Tests live in `res://tests/`, mirroring the feature folders.
 - **Standards:** follow `CODING_STANDARDS.md`.
