@@ -41,6 +41,9 @@ extends Resource
 ## Time after a Slide begins until the next Slide boost is full again; it grows linearly to full
 ## over this time, s.
 @export var slide_boost_cooldown: float = 1.5
+## Scales gravity along the floor in a Slide: speed gained downhill with crouch held, and lost
+## uphill (see docs/adr/0005).
+@export var slope_gain: float = 1.3
 ## Highest speed a Slide can gain; a faster entry keeps its speed, m/s.
 @export var top_slide_speed: float = 24.0
 ## How fast a Slide above Run speed loses speed, m/s^2.

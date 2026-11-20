@@ -8,6 +8,8 @@ const RUNNER_LAYER := 2
 const CEILING_BOTTOM := 1.3
 ## The ceiling spans z from 0 to this, m.
 const CEILING_FAR_EDGE := -4.0
+## Slope of the long downhill ramp, degrees: steep enough for a Slide to gain speed.
+const LONG_RAMP_SLOPE := 15.0
 
 var _tuning: RunnerTuning
 
@@ -128,6 +130,54 @@ func test_letting_go_partway_down_a_45_degree_ramp_stops_the_runner_on_the_ramp(
 	assert_float(runner.position.y).is_greater(0.5)
 	assert_float(runner.velocity.length()).is_equal_approx(0.0, 0.01)
 	assert_bool(runner.is_on_floor()).is_true()
+
+
+## A long ramp sloping down toward -Z by [constant LONG_RAMP_SLOPE], about 29 m long, its middle
+## at the origin. No floor around it.
+func _world_with_long_downhill_ramp() -> Node3D:
+	var world: Node3D = auto_free(Node3D.new())
+	var ramp := StaticBody3D.new()
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(6.0, 1.0, 30.0)
+	shape.shape = box
+	ramp.add_child(shape)
+	ramp.rotation.x = -deg_to_rad(LONG_RAMP_SLOPE)
+	world.add_child(ramp)
+	return world
+
+
+## Height of the long ramp's surface at [param z], m.
+func _long_ramp_height(z: float) -> float:
+	var slope := deg_to_rad(LONG_RAMP_SLOPE)
+	return 0.5 / cos(slope) + z * tan(slope)
+
+
+func test_a_slide_down_a_ramp_stays_on_the_ground_and_ends_faster_than_it_started() -> void:
+	var world := _world_with_long_downhill_ramp()
+	var runner := _add_runner(world, 12.0)
+	runner.position.y = _long_ramp_height(12.0) + 0.05
+	var scene := scene_runner(world)
+	await scene.simulate_frames(10, 16)
+
+	# Run downhill up to Run speed, then crouch into a Slide.
+	Input.action_press("move_forward")
+	await scene.simulate_frames(10, 16)
+	Input.action_press("crouch")
+	await scene.simulate_frames(2, 16)
+	var start := Vector2(runner.velocity.x, runner.velocity.z).length()
+	assert_float(start).is_greater_equal(_tuning.slide_entry_speed)
+	var frames := 0
+	while runner.position.z > -8.0 and frames < 180:
+		await scene.simulate_frames(1, 16)
+		frames += 1
+		assert_bool(runner.is_on_floor()).is_true()
+	Input.action_release("move_forward")
+
+	assert_float(runner.position.z).is_less_equal(-8.0)
+	# Still sliding: low, and faster than when the Slide began.
+	assert_float(_body_top(runner)).is_equal_approx(_tuning.crouch_height, 0.02)
+	assert_float(Vector2(runner.velocity.x, runner.velocity.z).length()).is_greater(start + 2.0)
 
 
 ## A floor with a ceiling slab over it from z = 0 to the far edge, its underside at
