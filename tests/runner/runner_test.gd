@@ -394,19 +394,26 @@ func _world_with_wall(face_x := WALL_FACE_X) -> Node3D:
 	return world
 
 
-func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
-	var world := _world_with_wall()
-	var runner := _add_runner(world, 0.0)
-	# Facing 20 degrees to the right of -Z, toward the wall.
-	runner.rotate_y(deg_to_rad(-20.0))
+## Jumps at the wall in [param world], turned [param turn] degrees toward it (negative turns
+## right), and Wall-runs along it, holding forward. Returns the scene runner once the jump has
+## been pressed.
+func _jump_at_wall(world: Node3D, runner: Runner, turn := -20.0) -> GdUnitSceneRunner:
+	runner.rotate_y(deg_to_rad(turn))
 	var scene := scene_runner(world)
 	await scene.simulate_frames(10, 16)
-
 	Input.action_press("move_forward")
 	await scene.simulate_frames(10, 16)
 	Input.action_press("jump")
 	await scene.simulate_frames(1, 16)
 	Input.action_release("jump")
+	return scene
+
+
+func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	# Facing 20 degrees to the right of -Z, toward the wall.
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner, -20.0)
 
 	var run_start := Vector3.INF
 	var run_end := Vector3.INF
@@ -428,21 +435,6 @@ func test_jumping_at_a_wall_at_an_angle_wall_runs_along_it_then_lands() -> void:
 	assert_float(run_end.x).is_equal_approx(WALL_FACE_X - RUNNER_RADIUS, 0.05)
 	assert_bool(runner.is_on_floor()).is_true()
 	assert_bool(runner.is_wall_running()).is_false()
-
-
-## Jumps at the wall in [param world], turned [param turn] degrees toward it (negative turns
-## right), and Wall-runs along it, holding forward. Returns the scene runner once the jump has
-## been pressed.
-func _jump_at_wall(world: Node3D, runner: Runner, turn := -20.0) -> GdUnitSceneRunner:
-	runner.rotate_y(deg_to_rad(turn))
-	var scene := scene_runner(world)
-	await scene.simulate_frames(10, 16)
-	Input.action_press("move_forward")
-	await scene.simulate_frames(10, 16)
-	Input.action_press("jump")
-	await scene.simulate_frames(1, 16)
-	Input.action_release("jump")
-	return scene
 
 
 func test_bumping_a_ceiling_during_a_wall_run_does_not_end_it() -> void:
