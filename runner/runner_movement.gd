@@ -70,6 +70,9 @@ var _mantle_time := 0.0
 ## True if the Mantle's top has room only for the crouched body, so the body stays low through
 ## the leap. Meaningful only in a Mantle.
 var _mantle_low := false
+## True while no Mantle can start: from a Mantle's start until the Runner lands. A Mantle that
+## ends in the air so never starts again straight away on the same ledge.
+var _mantle_locked := false
 
 
 ## [param standing_height] is the height of the Runner's standing body, m. Left at INF, no
@@ -239,6 +242,7 @@ func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> vo
 		_coyote_timer = _tuning.coyote_time
 		_coyote_wall_normal = Vector3.ZERO
 		_wall_locked = false
+		_mantle_locked = false
 		_wall_jump_speed = INF
 	else:
 		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
@@ -378,10 +382,10 @@ func _head_on_angle(direction: Vector3, normal: Vector3) -> float:
 ## True if the Runner, in the air, has a ledge ahead it can Mantle onto: its face is near enough
 ## vertical to be a wall, the Player holds a direction within the Mantle input angle of straight
 ## into it, its top is above the feet and within Mantle reach, and at least the crouched body
-## fits on it.
+## fits on it. No Mantle starts again until the Runner has landed since the last one began.
 func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
 	var ledge := contact.ledge
-	if grounded or ledge == null or not is_wall(ledge.normal):
+	if grounded or _mantle_locked or ledge == null or not is_wall(ledge.normal):
 		return false
 	if intent.move_direction.is_zero_approx():
 		return false
@@ -402,6 +406,7 @@ func _starts_mantle(intent: Intent, contact: Contact, grounded: bool) -> bool:
 ## Mantle falls back.
 func _start_mantle(contact: Contact, velocity: Vector3) -> Vector3:
 	_state = State.MANTLE
+	_mantle_locked = true
 	_coyote_timer = 0.0
 	_mantle_low = contact.ledge.clear_height < _standing_height
 	_slide_released = false

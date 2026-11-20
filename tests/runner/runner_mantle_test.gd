@@ -326,3 +326,36 @@ func test_landing_from_a_mantle_with_crouch_held_slide_hops_keeping_its_speed() 
 	# 12 m/s is past the 11 m/s Slide boost cap, so it is kept, less one frame of the 4 m/s²
 	# slide friction.
 	assert_float(_horizontal(velocity).length()).is_equal_approx(12.0 - 4.0 / 60.0, 0.0001)
+
+
+## Mantles from a standstill and leaps on until the Mantle falls back below the top and ends in
+## the air. Returns the last velocity.
+func _mantle_falling_back() -> Vector3:
+	var velocity := _movement.step(_moving(FORWARD), _at_ledge(), Vector3.ZERO, DELTA)
+	while _is_mantling():
+		velocity = _movement.step(_moving(), _in_air(), velocity, DELTA)
+	return velocity
+
+
+func test_a_mantle_that_ends_in_the_air_starts_no_new_mantle_before_landing() -> void:
+	var velocity := _mantle_falling_back()
+	for frame: int in 10:
+		velocity = _movement.step(_moving(FORWARD), _at_ledge(), velocity, DELTA)
+		assert_bool(_is_mantling()).is_false()
+
+
+func test_a_mantle_that_hit_its_time_limit_starts_no_new_mantle_before_landing() -> void:
+	var start := _movement.step(_moving(FORWARD), _at_ledge(), Vector3.ZERO, DELTA)
+	var stuck := _horizontal(start)
+	while _is_mantling():
+		_movement.step(_moving(), _in_air(), stuck, DELTA)
+	_movement.step(_moving(FORWARD), _at_ledge(), stuck, DELTA)
+	assert_bool(_is_mantling()).is_false()
+
+
+func test_landing_after_a_mantle_ends_in_the_air_allows_a_mantle_again() -> void:
+	var velocity := _mantle_falling_back()
+	velocity.y = 0.0
+	velocity = _movement.step(_moving(FORWARD), _on_top(), velocity, DELTA)
+	_movement.step(_moving(FORWARD), _at_ledge(), velocity + Vector3.UP, DELTA)
+	assert_bool(_is_mantling()).is_true()
