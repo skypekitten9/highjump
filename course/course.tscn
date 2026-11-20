@@ -1,7 +1,7 @@
 [gd_scene format=3]
 
 [ext_resource type="Script" path="res://course/course.gd" id="1_course"]
-[ext_resource type="PackedScene" path="res://runner/runner.tscn" id="2_runner"]
+[ext_resource type="PackedScene" path="res://course/end_screen.tscn" id="3_end_screen"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
 
@@ -25,5 +25,4 @@ shadow_enabled = true
 
 [node name="Sections" type="Node3D" parent="."]
 
-[node name="Runner" parent="." instance=ExtResource("2_runner")]
-position = Vector3(0, 0, -2)
+[node name="EndScreen" parent="." instance=ExtResource("3_end_screen")]
