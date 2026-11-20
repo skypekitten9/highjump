@@ -66,6 +66,15 @@ func test_the_course_knows_a_start_section_and_sections_to_pick() -> void:
 	assert_int(_all_section_scenes().size()).is_greater_equal(2)
 
 
+func test_the_course_picks_four_sections_of_difficulty_1_two_of_2_and_one_of_3() -> void:
+	var course: Course = auto_free(CourseScene.instantiate())
+	var counts: Dictionary[int, int] = { 1: 0, 2: 0, 3: 0 }
+	for scene: PackedScene in course.section_list.sections:
+		var section: Section = auto_free(scene.instantiate())
+		counts[section.difficulty] += 1
+	assert_dict(counts).is_equal({ 1: 4, 2: 2, 3: 1 })
+
+
 func test_every_section_declares_a_length_and_a_difficulty_from_1_to_3() -> void:
 	for scene: PackedScene in _all_section_scenes():
 		var section: Section = auto_free(scene.instantiate())
@@ -91,7 +100,9 @@ func test_every_section_is_8_m_wide_with_open_edges() -> void:
 	var sections: Array[Section] = await _lay_all()
 	for section: Section in sections:
 		for side: float in [-1.0, 1.0]:
-			_assert_floor_at_0(section, side * (HALF_WIDTH - EDGE_PROBE), section.length / 2.0)
+			# Near each end, since obstacles and Gaps fill the middle.
+			for along: float in [EDGE_PROBE, section.length - EDGE_PROBE]:
+				_assert_floor_at_0(section, side * (HALF_WIDTH - EDGE_PROBE), along)
 			var outside := side * (HALF_WIDTH + EDGE_PROBE)
 			for along: float in [EDGE_PROBE, section.length / 2.0, section.length - EDGE_PROBE]:
 				_assert_nothing_at(section, outside, along)
