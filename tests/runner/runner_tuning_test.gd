@@ -13,6 +13,12 @@ func _feel_values(tuning: RunnerTuning) -> Array[Dictionary]:
 	return values
 
 
+## The lowest value a feel value's range allows.
+func _range_minimum(property: Dictionary) -> float:
+	var hint_string: String = property["hint_string"]
+	return hint_string.split(",")[0].to_float()
+
+
 func test_every_feel_value_has_a_range_with_a_unit() -> void:
 	var values := _feel_values(RunnerTuning.new())
 	assert_array(values).is_not_empty()
@@ -33,7 +39,7 @@ func test_default_preset_sits_inside_every_range() -> void:
 		var hint_string: String = property["hint_string"]
 		var parts := hint_string.split(",")
 		var value: float = tuning.get(value_name)
-		var above_minimum := value >= parts[0].to_float()
+		var above_minimum := value >= _range_minimum(property)
 		var below_maximum := parts.has("or_greater") or value <= parts[1].to_float()
 		var message := "%s is outside its range %s" % [value_name, hint_string]
 		assert_bool(above_minimum and below_maximum).override_failure_message(message).is_true()
@@ -42,7 +48,6 @@ func test_default_preset_sits_inside_every_range() -> void:
 func test_slide_boost_cooldown_cannot_be_zero() -> void:
 	for property: Dictionary in _feel_values(RunnerTuning.new()):
 		if property["name"] == "slide_boost_cooldown":
-			var hint_string: String = property["hint_string"]
-			assert_float(hint_string.split(",")[0].to_float()).is_greater(0.0)
+			assert_float(_range_minimum(property)).is_greater(0.0)
 			return
 	fail("slide_boost_cooldown is not a feel value")
