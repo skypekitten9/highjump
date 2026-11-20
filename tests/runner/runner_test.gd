@@ -826,14 +826,16 @@ func test_steering_into_a_low_wall_during_a_wall_run_mantles_onto_its_top() -> v
 	var runner := _add_runner(world, 0.0)
 	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
 
+	# Only a couple of frames in: once the middle of the body rises past the top, the run loses
+	# the wall, and a frame may hold two physics steps.
 	var running_frames := 0
 	for frame: int in 60:
 		await scene.simulate_frames(1, 16)
 		if runner.is_wall_running():
 			running_frames += 1
-			if running_frames == 5:
+			if running_frames == 2:
 				break
-	assert_int(running_frames).is_equal(5)
+	assert_int(running_frames).is_equal(2)
 	var speed_along := -runner.velocity.z
 	# Steer into the wall, on the Runner's right: the run turns straight into a Mantle.
 	Input.action_press("move_right")
