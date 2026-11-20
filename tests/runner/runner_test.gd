@@ -93,6 +93,9 @@ func test_running_up_a_45_degree_ramp_onto_its_flat_top_stays_on_the_ground() ->
 	for frame: int in 80:
 		await scene.simulate_frames(1, 16)
 		highest = maxf(highest, runner.position.y)
+		# Well onto the top, short of its far edge whatever the Run speed.
+		if runner.position.z < -5.0:
+			break
 	Input.action_release("move_forward")
 
 	assert_float(runner.position.z).is_less(-3.0)
