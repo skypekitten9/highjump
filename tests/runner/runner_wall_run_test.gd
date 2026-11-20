@@ -72,6 +72,16 @@ func _meet_wall(approach: Vector3, intent := _moving(FORWARD), contact := _on_wa
 	return _movement.step(intent, contact, after_collision, DELTA)
 
 
+## Frames from a moment to just inside a window of [param seconds] after it.
+func _frames_inside(seconds: float) -> int:
+	return roundi(seconds / DELTA) - 1
+
+
+## Frames from a moment to clearly past a window of [param seconds] after it.
+func _frames_past(seconds: float) -> int:
+	return roundi(seconds / DELTA) + 3
+
+
 func _is_wall_running() -> bool:
 	return _movement.state() == RunnerMovement.State.WALL_RUN
 
@@ -212,7 +222,8 @@ func test_a_wall_run_ends_below_the_end_speed_keeping_its_velocity() -> void:
 		on_wall = velocity
 		velocity = _movement.step(_moving(), _on_wall(), velocity, DELTA)
 		frames += 1
-	assert_float(float(frames)).is_equal_approx(expected_frames, 2.0)
+	# Within a tenth: a slowdown or end speed off by more is not this tuning.
+	assert_float(float(frames)).is_equal_approx(expected_frames, expected_frames * 0.1)
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
 	assert_bool(_horizontal(velocity).is_equal_approx(_horizontal(on_wall))).is_true()
 	assert_float(velocity.y).is_equal_approx(on_wall.y - _tuning.gravity * DELTA, 0.0001)
@@ -236,7 +247,7 @@ func test_the_slide_boost_cooldown_keeps_counting_during_a_wall_run() -> void:
 	var slide := _movement.step(_crouching(FORWARD), _on_floor(), FORWARD * FAST, DELTA)
 	assert_int(_movement.state()).is_equal(RunnerMovement.State.SLIDE)
 	var velocity := _meet_wall(_toward_wall(_horizontal(slide).length(), GLANCING))
-	var frames := roundi(_tuning.slide_boost_cooldown / DELTA) + 3
+	var frames := _frames_past(_tuning.slide_boost_cooldown)
 	for frame: int in frames:
 		velocity = _movement.step(_moving(FORWARD), _on_wall(), velocity, DELTA)
 	assert_bool(_is_wall_running()).is_true()
@@ -296,15 +307,13 @@ func _press_after_wall_runs_out(frames_after: int) -> Vector3:
 
 
 func test_a_jump_pressed_just_inside_coyote_time_after_a_wall_run_wall_jumps() -> void:
-	var frames := roundi(_tuning.coyote_time / DELTA) - 1
-	var velocity := _press_after_wall_runs_out(frames)
+	var velocity := _press_after_wall_runs_out(_frames_inside(_tuning.coyote_time))
 	assert_float(velocity.dot(WALL_NORMAL)).is_equal_approx(_tuning.wall_jump_push, 0.0001)
 	assert_float(velocity.y).is_equal_approx(_launch_speed(), 0.0001)
 
 
 func test_a_jump_pressed_past_coyote_time_after_a_wall_run_does_not_jump() -> void:
-	var frames := roundi(_tuning.coyote_time / DELTA) + 3
-	var velocity := _press_after_wall_runs_out(frames)
+	var velocity := _press_after_wall_runs_out(_frames_past(_tuning.coyote_time))
 	assert_float(velocity.dot(WALL_NORMAL)).is_equal_approx(0.0, 0.0001)
 	assert_float(velocity.y).is_less(0.0)
 
