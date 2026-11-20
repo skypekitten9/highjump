@@ -16,7 +16,7 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## How fast speed above Run speed fades on the ground while input is held, m/s^2.
 @export_range(0.0, 100.0, 0.1, "or_greater", "suffix:m/s²") var overspeed_decay: float = 10.0
 ## Air steering acceleration, m/s^2. Steering never raises speed above max(Run speed, current).
-@export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m/s²") var air_accel: float = 45.0
+@export_range(0.0, 200.0, 1.0, "or_greater", "suffix:m/s²") var air_accel: float = 20.0
 ## Gravity, one value for both rising and falling, m/s^2.
 @export_range(0.0, 60.0, 0.1, "or_greater", "suffix:m/s²") var gravity: float = 20.0
 ## Height of the jump's peak above take-off, m. Launch speed is sqrt(2 * gravity * height).
@@ -81,6 +81,11 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 @export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s²") var wall_run_slowdown: float = 1.0
 ## Falling speed is capped at this as a Wall-run starts; upward speed is kept, m/s.
 @export_range(0.0, 20.0, 0.1, "or_greater", "suffix:m/s") var wall_run_max_entry_fall: float = 2.0
+## A Wall-jump adds this speed straight away from the wall, m/s.
+@export_range(0.0, 30.0, 0.1, "or_greater", "suffix:m/s") var wall_jump_push: float = 6.0
+## Highest speed jumping from wall to wall can reach; a Runner already faster keeps its speed,
+## m/s.
+@export_range(0.0, 60.0, 0.5, "or_greater", "suffix:m/s") var top_wall_run_speed: float = 24.0
 
 @export_group("View")
 ## Mouse look, radians per pixel of mouse movement.

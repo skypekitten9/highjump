@@ -7,6 +7,8 @@ const FORWARD := Vector3.FORWARD
 ## The wall's normal: it faces the Runner, which has the wall on its right.
 const WALL_NORMAL := Vector3.LEFT
 const WALL_ID := 1234
+## The facing wall across the gap: its normal points back toward the first wall.
+const OPPOSITE_NORMAL := Vector3.RIGHT
 ## A speed comfortably above the Wall-run entry speed, m/s.
 const FAST := 10.0
 ## A glancing approach, degrees from parallel to the wall.
@@ -245,3 +247,137 @@ func test_the_slide_boost_cooldown_keeps_counting_during_a_wall_run() -> void:
 	if landing < _tuning.run_speed:
 		friction = _tuning.slow_slide_friction
 	assert_float(_horizontal(velocity).length()).is_equal_approx(boosted - friction * DELTA, 0.05)
+
+
+## The Player pressing jump this frame while holding [param direction].
+func _jumping(direction := FORWARD) -> RunnerMovement.Intent:
+	return RunnerMovement.Intent.new(direction, true)
+
+
+## Upward speed of a jump off the floor, m/s.
+func _launch_speed() -> float:
+	return sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+
+
+func test_a_wall_jump_keeps_the_speed_along_the_wall_adds_the_push_and_launches_up() -> void:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	velocity = _movement.step(_moving(FORWARD), _on_wall(), velocity, DELTA)
+	var along := velocity.dot(FORWARD)
+	velocity = _movement.step(_jumping(), _on_wall(), velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	assert_float(velocity.dot(FORWARD)).is_equal_approx(along, 0.0001)
+	assert_float(velocity.dot(WALL_NORMAL)).is_equal_approx(_tuning.wall_jump_push, 0.0001)
+	assert_float(velocity.y).is_equal_approx(_launch_speed(), 0.0001)
+
+
+func test_a_jump_pressed_just_before_meeting_a_wall_does_not_wall_jump_as_the_run_starts() -> void:
+	var approach := _toward_wall(FAST, GLANCING)
+	approach = _movement.step(_jumping(), _in_air(), approach, DELTA)
+	var velocity := _meet_wall(approach)
+	var frames := ceili(_tuning.jump_buffer_time / DELTA) + 1
+	for frame: int in frames:
+		velocity = _movement.step(_moving(FORWARD), _on_wall(), velocity, DELTA)
+		assert_bool(_is_wall_running()).is_true()
+
+
+## Wall-runs until the wall runs out, then presses jump on the [param frames_after]th frame
+## after the run ended. Returns the velocity on that frame.
+func _press_after_wall_runs_out(frames_after: int) -> Vector3:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	for frame: int in frames_after - 1:
+		velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	return _movement.step(_jumping(), _in_air(), velocity, DELTA)
+
+
+func test_a_jump_pressed_just_inside_coyote_time_after_a_wall_run_wall_jumps() -> void:
+	var frames := roundi(_tuning.coyote_time / DELTA) - 1
+	var velocity := _press_after_wall_runs_out(frames)
+	assert_float(velocity.dot(WALL_NORMAL)).is_equal_approx(_tuning.wall_jump_push, 0.0001)
+	assert_float(velocity.y).is_equal_approx(_launch_speed(), 0.0001)
+
+
+func test_a_jump_pressed_past_coyote_time_after_a_wall_run_does_not_jump() -> void:
+	var frames := roundi(_tuning.coyote_time / DELTA) + 3
+	var velocity := _press_after_wall_runs_out(frames)
+	assert_float(velocity.dot(WALL_NORMAL)).is_equal_approx(0.0, 0.0001)
+	assert_float(velocity.y).is_less(0.0)
+
+
+## Touching a wall with [param id] and [param normal] in the air.
+func _on_other_wall(id: int, normal := WALL_NORMAL) -> RunnerMovement.Contact:
+	return RunnerMovement.Contact.new(false, Vector3.UP, true, true, normal, id)
+
+
+## Wall-runs the wall until it runs out, then flies on a frame. Returns the velocity.
+func _run_off_the_wall() -> Vector3:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	return _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+
+
+func test_the_same_wall_is_refused_again_until_the_runner_lands() -> void:
+	_run_off_the_wall()
+	_meet_wall(_toward_wall(FAST, GLANCING))
+	assert_bool(_is_wall_running()).is_false()
+	_movement.step(_moving(FORWARD), _on_floor(), FORWARD * FAST, DELTA)
+	_meet_wall(_toward_wall(FAST, GLANCING))
+	assert_bool(_is_wall_running()).is_true()
+
+
+func test_a_different_wall_is_accepted_and_frees_the_first_again() -> void:
+	_run_off_the_wall()
+	_meet_wall(_toward_wall(FAST, GLANCING), _moving(FORWARD), _on_other_wall(WALL_ID + 1))
+	assert_bool(_is_wall_running()).is_true()
+	_movement.step(_moving(FORWARD), _in_air(), FORWARD * FAST, DELTA)
+	_meet_wall(_toward_wall(FAST, GLANCING))
+	assert_bool(_is_wall_running()).is_true()
+
+
+## Wall-runs the wall at [param speed], Wall-jumps, flies a frame holding forward and meets the
+## opposite wall, its into-wall speed removed by the collision. Returns the velocity of the frame
+## the opposite wall is met.
+func _wall_jump_across(speed: float) -> Vector3:
+	var velocity := _meet_wall(_toward_wall(speed, GLANCING))
+	velocity = _movement.step(_jumping(), _on_wall(), velocity, DELTA)
+	velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	velocity -= OPPOSITE_NORMAL * minf(velocity.dot(OPPOSITE_NORMAL), 0.0)
+	var opposite := _on_other_wall(WALL_ID + 1, OPPOSITE_NORMAL)
+	return _movement.step(_moving(FORWARD), opposite, velocity, DELTA)
+
+
+func test_a_wall_jump_to_the_opposite_wall_turns_the_push_into_speed_along_it() -> void:
+	var velocity := _wall_jump_across(FAST)
+	assert_bool(_is_wall_running()).is_true()
+	# All of it: the speed along the first wall and the push.
+	var speed := Vector2(FAST, _tuning.wall_jump_push).length()
+	assert_float(_horizontal(velocity).length()).is_equal_approx(speed, 0.001)
+	assert_float(_horizontal(velocity).normalized().dot(FORWARD)).is_equal_approx(1.0, 0.0001)
+
+
+func test_speed_gained_from_wall_to_wall_stops_at_the_top_wall_run_speed() -> void:
+	var velocity := _wall_jump_across(_tuning.top_wall_run_speed - 0.5)
+	assert_bool(_is_wall_running()).is_true()
+	var speed := _horizontal(velocity).length()
+	assert_float(speed).is_equal_approx(_tuning.top_wall_run_speed, 0.001)
+
+
+func test_a_runner_faster_than_the_top_wall_run_speed_keeps_its_speed_from_wall_to_wall() -> void:
+	var fast := _tuning.top_wall_run_speed + 6.0
+	var velocity := _wall_jump_across(fast)
+	assert_bool(_is_wall_running()).is_true()
+	assert_float(_horizontal(velocity).length()).is_equal_approx(fast, 0.001)
+
+
+func test_a_wall_jump_with_no_forward_speed_meets_the_opposite_wall_too_head_on_to_run_it() -> void:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	# Something ahead stops the run dead; the wall runs on beside the Runner.
+	velocity = _movement.step(_moving(), _on_wall(), Vector3.UP * velocity.y, DELTA)
+	velocity = _movement.step(_jumping(-OPPOSITE_NORMAL), _in_air(), velocity, DELTA)
+	assert_float(_horizontal(velocity).dot(FORWARD)).is_equal_approx(0.0, 0.0001)
+	assert_float(_horizontal(velocity).length()).is_greater_equal(_tuning.wall_run_entry_speed)
+	# Holding straight toward the opposite wall, so the angle alone refuses the run.
+	velocity = _movement.step(_moving(-OPPOSITE_NORMAL), _in_air(), velocity, DELTA)
+	velocity -= OPPOSITE_NORMAL * minf(velocity.dot(OPPOSITE_NORMAL), 0.0)
+	var opposite := _on_other_wall(WALL_ID + 1, OPPOSITE_NORMAL)
+	_movement.step(_moving(-OPPOSITE_NORMAL), opposite, velocity, DELTA)
+	assert_bool(_is_wall_running()).is_false()

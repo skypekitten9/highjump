@@ -42,6 +42,17 @@ var _last_velocity := Vector3.ZERO
 var _wall_normal := Vector3.ZERO
 ## Horizontal unit direction the Wall-run runs in, along the wall.
 var _wall_direction := Vector3.ZERO
+## Horizontal unit normal of the wall the coyote time came from, or zero if it came from the
+## floor: a jump in that coyote time is a Wall-jump off that wall.
+var _coyote_wall_normal := Vector3.ZERO
+## True while the wall last run can't be run again: from the run's start until the Runner lands.
+var _wall_locked := false
+## Identity of the wall last run; meaningful only while [member _wall_locked].
+var _locked_wall_id := 0
+## Speed along the wall the last Wall-jump kept, until the next Wall-run starts or the Runner
+## lands; INF if there was none. The next Wall-run may be faster only up to the Top wall-run
+## speed, unless this was already faster.
+var _wall_jump_speed := INF
 
 
 func _init(tuning: RunnerTuning) -> void:
@@ -54,9 +65,17 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 	var grounded := _is_grounded(velocity, contact.on_floor, contact.floor_normal)
 	_update_jump_timers(intent.jump_pressed, grounded, delta)
 	if _state == State.WALL_RUN:
+		if _jump_buffer_timer > 0.0 and not grounded:
+			var horizontal := Vector3(velocity.x, 0.0, velocity.z)
+			var jump := _wall_jump(horizontal, _wall_normal)
+			return _finish(jump, false, contact)
 		if _wall_run_continues(grounded, contact, velocity):
 			return _finish(_wall_run(velocity, delta), false, contact)
-		# Ends keeping its velocity; a landing goes on through the ground states below.
+		# Ends keeping its velocity; a landing goes on through the ground states below. Leaving
+		# the wall in the air starts a coyote time for a Wall-jump off it.
+		if not grounded:
+			_coyote_timer = _tuning.coyote_time
+			_coyote_wall_normal = _wall_normal
 		_go_airborne()
 	elif _starts_wall_run(intent, contact, velocity, grounded):
 		return _finish(_start_wall_run(contact, velocity), false, contact)
@@ -93,7 +112,10 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 		horizontal = _air_horizontal(horizontal, intent.move_direction, delta)
 		vertical = velocity.y - _tuning.gravity * delta
 	if _jump_buffer_timer > 0.0 and (grounded or _coyote_timer > 0.0):
-		vertical = maxf(vertical, sqrt(2.0 * _tuning.gravity * _tuning.jump_height))
+		if not _coyote_wall_normal.is_zero_approx():
+			var jump := _wall_jump(horizontal, _coyote_wall_normal)
+			return _finish(jump, false, contact)
+		vertical = maxf(vertical, _launch_speed())
 		clear_jump_timers()
 		grounded = false
 		_go_airborne()
@@ -150,6 +172,9 @@ func _update_jump_timers(jump_pressed: bool, grounded: bool, delta: float) -> vo
 		_jump_buffer_timer = _tuning.jump_buffer_time
 	if grounded:
 		_coyote_timer = _tuning.coyote_time
+		_coyote_wall_normal = Vector3.ZERO
+		_wall_locked = false
+		_wall_jump_speed = INF
 	else:
 		_coyote_timer = maxf(_coyote_timer - delta, 0.0)
 
@@ -275,10 +300,13 @@ func _along_floor(horizontal: Vector3, floor_normal: Vector3) -> float:
 
 
 ## True if the Runner meets a wall in the air that it can run: fast enough, at a glancing enough
-## angle, while the Player holds a direction into or along it. Speed is measured before the
-## collision took away the speed going into the wall.
+## angle, while the Player holds a direction into or along it, and it isn't the wall last run
+## since the Runner landed. Speed is measured before the collision took away the speed going
+## into the wall.
 func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, grounded: bool) -> bool:
 	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
+		return false
+	if _wall_locked and contact.wall_id == _locked_wall_id:
 		return false
 	var normal := _horizontal_unit(contact.wall_normal)
 	var horizontal := _before_wall_collision(velocity, normal)
@@ -297,16 +325,24 @@ func _starts_wall_run(intent: Intent, contact: Contact, velocity: Vector3, groun
 
 
 ## Starts a Wall-run: all horizontal speed turns along the wall, falling speed is capped and
-## upward speed is kept (see docs/adr/0006).
+## upward speed is kept (see docs/adr/0006). Speed a Wall-jump's push adds stops at the Top
+## wall-run speed. A jump pressed before meeting the wall is forgotten, so the run isn't cut
+## short by a Wall-jump as it starts.
 func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
 	var normal := _horizontal_unit(contact.wall_normal)
 	var horizontal := _before_wall_collision(velocity, normal)
+	clear_jump_timers()
+	_wall_locked = true
+	_locked_wall_id = contact.wall_id
 	_state = State.WALL_RUN
 	_slide_released = false
 	_wall_normal = normal
 	_wall_direction = _along_wall(horizontal, normal).normalized()
+	# The push of a Wall-jump that brought the Runner here gains speed only up to the cap.
+	var speed := minf(horizontal.length(), maxf(_wall_jump_speed, _tuning.top_wall_run_speed))
+	_wall_jump_speed = INF
 	var vertical := maxf(velocity.y, -_tuning.wall_run_max_entry_fall)
-	return _wall_direction * horizontal.length() + Vector3.UP * vertical
+	return _wall_direction * speed + Vector3.UP * vertical
 
 
 ## True if a Wall-run goes on: still in the air, still touching a wall, and fast enough.
@@ -321,6 +357,21 @@ func _wall_run(velocity: Vector3, delta: float) -> Vector3:
 	var speed := maxf(velocity.dot(_wall_direction) - _tuning.wall_run_slowdown * delta, 0.0)
 	var vertical := velocity.y - _tuning.gravity * _tuning.wall_run_gravity_scale * delta
 	return _wall_direction * speed + Vector3.UP * vertical
+
+
+## Jumps off the wall with horizontal unit [param normal]: speed along it is kept, the Wall-jump
+## push is added straight away from it, and upward speed is the jump's launch speed.
+func _wall_jump(horizontal: Vector3, normal: Vector3) -> Vector3:
+	var along := _along_wall(horizontal, normal)
+	_wall_jump_speed = along.length()
+	clear_jump_timers()
+	_go_airborne()
+	return along + normal * _tuning.wall_jump_push + Vector3.UP * _launch_speed()
+
+
+## Upward speed of a jump, m/s.
+func _launch_speed() -> float:
+	return sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
 
 
 ## True if a surface with [param normal] is near enough vertical to be a wall.
