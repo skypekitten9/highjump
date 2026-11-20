@@ -1,8 +1,10 @@
 # Highjump
 
-A first-person movement game built around vaulting with a pole, alongside other movement abilities like wall running and sliding.
+A first-person endless runner built around movement: vaulting with a pole, alongside other movement abilities like wall running and sliding, carries the **Runner** through the obstacles of an endless **Course**.
 
 ## Language
+
+### Movement
 
 **Runner**:
 The body the **Player** controls in the world, seen from its own eyes.
@@ -75,3 +77,61 @@ _Avoid_: Vault (that's the **Pole**), ledge grab, climb, edge vault
 **Mantle reach**:
 How far above the **Runner**'s feet a ledge can be and still be Mantled.
 _Avoid_: Mantle height, grab range
+
+### The Course
+
+**Course**:
+The endless, straight way the **Runner** runs along during an **Attempt**, made of **Sections** laid end to end, new and random each Attempt.
+_Avoid_: Level, track, map, run
+
+**Course heading**:
+The fixed direction the **Course** leads in, which the **Runner** is always moving along.
+_Avoid_: Forward (alone), track direction
+
+**Section**:
+One piece of the **Course**, built by hand, holding one or more obstacles.
+_Avoid_: Chunk, tile, segment, room
+
+**Attempt**:
+One go along the **Course**, from its start until the **Runner** falls or **Stalls**.
+_Avoid_: Run (that's moving on the ground), round, life, try
+
+**Stall**:
+The **Runner** making almost no progress along the **Course heading** for a moment, such as when it's stuck against an obstacle; it ends the **Attempt**.
+_Avoid_: Stuck, blocked
+
+**Look limit**:
+How far the **Player** can turn the view to either side of the **Course heading**; the **Runner** always runs where it looks, so this keeps it running along the **Course**.
+_Avoid_: Yaw clamp, view lock
+
+**Distance**:
+How far along the **Course heading** the **Runner** has got in an **Attempt**: the **Player**'s score.
+_Avoid_: Score, points, progress
+
+**Best distance**:
+The greatest **Distance** of any **Attempt** the **Player** has made, kept between sessions.
+_Avoid_: High score, record
+
+### Obstacles
+
+Every obstacle spans the full width of the **Course**, so the **Runner** must go through it.
+
+**Hurdle**:
+A low barrier the **Runner** jumps or **Mantles** over.
+_Avoid_: Fence, low wall
+
+**Block**:
+A barrier too tall to jump over, which the **Runner** must **Mantle** onto.
+_Avoid_: Wall (that's what a **Wall-run** runs along), box, crate
+
+**Overhead bar**:
+A bar too low to run under standing, which the **Runner** must **Crouch** or **Slide** under.
+_Avoid_: Low ceiling, beam, duck bar
+
+**Gap**:
+A stretch of the **Course** with no floor, which the **Runner** must jump across.
+_Avoid_: Pit, hole, chasm
+
+**Wall-run gap**:
+A **Gap** too long to jump, with a wall alongside that the **Runner** **Wall-runs** to cross it.
+_Avoid_: Wall gap, wall-run section
