@@ -574,6 +574,35 @@ func test_a_wall_on_the_right_rolls_the_camera_left_easing_in_and_back_out() -> 
 	assert_float(after[-1]).is_equal_approx(0.0, 0.05)
 
 
+func test_the_camera_rolls_back_to_level_after_a_wall_jump() -> void:
+	var world := _world_with_wall()
+	var runner := _add_runner(world, 0.0)
+	var scene: GdUnitSceneRunner = await _jump_at_wall(world, runner)
+	var tilt := _tuning.wall_run_camera_tilt
+	# Wall-run until the camera is well rolled, then Wall-jump off the wall.
+	var running_frames := 0
+	for frame: int in 300:
+		await scene.simulate_frames(1, 16)
+		if runner.is_wall_running():
+			running_frames += 1
+		if running_frames == 20:
+			break
+	assert_int(running_frames).is_equal(20)
+	assert_float(_camera_roll(runner)).is_greater(tilt * 0.5)
+
+	Input.action_press("jump")
+	await scene.simulate_frames(1, 16)
+	Input.action_release("jump")
+	assert_bool(runner.is_wall_running()).is_false()
+	# Eases back to level, never rolling further.
+	var roll := _camera_roll(runner)
+	for frame: int in 60:
+		await scene.simulate_frames(1, 16)
+		assert_float(_camera_roll(runner)).is_less_equal(roll + 0.01)
+		roll = _camera_roll(runner)
+	assert_float(roll).is_equal_approx(0.0, 0.05)
+
+
 func test_a_wall_on_the_left_rolls_the_camera_right() -> void:
 	var world := _world_with_wall(-WALL_FACE_X)
 	var runner := _add_runner(world, 0.0)
