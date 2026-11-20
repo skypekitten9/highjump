@@ -381,3 +381,84 @@ func test_a_wall_jump_with_no_forward_speed_meets_the_opposite_wall_too_head_on_
 	var opposite := _on_other_wall(WALL_ID + 1, OPPOSITE_NORMAL)
 	_movement.step(_moving(-OPPOSITE_NORMAL), opposite, velocity, DELTA)
 	assert_bool(_is_wall_running()).is_false()
+
+
+## The wall's normal turned by [param degrees] about UP: positive turns it toward FORWARD, so
+## the wall bends away from the Runner (the outside of a curve or corner); negative turns it
+## toward BACK, so the wall bends into the Runner's path.
+func _turned_normal(degrees: float) -> Vector3:
+	return WALL_NORMAL.rotated(Vector3.UP, deg_to_rad(-degrees))
+
+
+func test_a_wall_curving_away_gently_frame_by_frame_is_followed_with_speed_unchanged() -> void:
+	var velocity := _meet_wall(_toward_wall(FAST, 0.0))
+	var step := _tuning.wall_run_follow_angle / 10.0
+	var frames := 30
+	var normal := WALL_NORMAL
+	for frame: int in frames:
+		normal = _turned_normal(step * (frame + 1))
+		var contact := _on_other_wall(WALL_ID, normal)
+		velocity = _movement.step(_moving(FORWARD), contact, velocity, DELTA)
+		assert_bool(_is_wall_running()).is_true()
+	assert_bool(_movement.wall_normal().is_equal_approx(normal)).is_true()
+	var direction := _turned_normal(step * frames).cross(Vector3.UP)
+	assert_float(_horizontal(velocity).normalized().dot(direction)).is_equal_approx(1.0, 0.0001)
+	var speed := FAST - _tuning.wall_run_slowdown * frames * DELTA
+	assert_float(_horizontal(velocity).length()).is_equal_approx(speed, 0.001)
+
+
+func test_a_wall_turning_away_beyond_the_follow_angle_ends_the_run_at_the_outside_corner() -> void:
+	var on_wall := _meet_wall(_toward_wall(FAST, GLANCING))
+	var corner := _on_other_wall(WALL_ID, _turned_normal(_tuning.wall_run_follow_angle + 5.0))
+	var velocity := _movement.step(_moving(FORWARD), corner, on_wall, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	# It flies off the corner with its velocity.
+	assert_bool(_horizontal(velocity).is_equal_approx(_horizontal(on_wall))).is_true()
+
+
+## Wall-runs the wall, then meets another wall turned [param degrees] into the Runner's path (an
+## inside corner), its speed into that wall removed by the collision. Returns the velocity of the
+## frame the other wall is met; [param on_wall] gets the velocity of the frame before.
+func _meet_inside_corner(degrees: float, on_wall: Array[Vector3]) -> Vector3:
+	var velocity := _meet_wall(_toward_wall(FAST, GLANCING))
+	on_wall.append(velocity)
+	var normal := _turned_normal(-degrees)
+	velocity -= normal * minf(velocity.dot(normal), 0.0)
+	return _movement.step(_moving(FORWARD), _on_other_wall(WALL_ID + 1, normal), velocity, DELTA)
+
+
+func test_a_wall_blocking_the_run_within_the_maximum_entry_angle_carries_it_on_at_speed() -> void:
+	var degrees := 40.0
+	var before: Array[Vector3] = []
+	var velocity := _meet_inside_corner(degrees, before)
+	assert_bool(_is_wall_running()).is_true()
+	var speed := _horizontal(before[0]).length() - _tuning.wall_run_slowdown * DELTA
+	assert_float(_horizontal(velocity).length()).is_equal_approx(speed, 0.001)
+	var along := _turned_normal(-degrees).cross(Vector3.UP)
+	assert_float(_horizontal(velocity).normalized().dot(along)).is_equal_approx(1.0, 0.0001)
+
+
+func test_the_wall_turned_onto_at_an_inside_corner_is_refused_again_until_landing() -> void:
+	var degrees := 40.0
+	var velocity := _meet_inside_corner(degrees, [] as Array[Vector3])
+	velocity = _movement.step(_moving(FORWARD), _in_air(), velocity, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	var normal := _turned_normal(-degrees)
+	var glancing := _toward_wall(FAST, GLANCING).rotated(Vector3.UP, deg_to_rad(degrees))
+	_movement.step(_moving(FORWARD), _in_air(), glancing, DELTA)
+	glancing -= normal * minf(glancing.dot(normal), 0.0)
+	_movement.step(_moving(FORWARD), _on_other_wall(WALL_ID + 1, normal), glancing, DELTA)
+	assert_bool(_is_wall_running()).is_false()
+
+
+func test_a_wall_blocking_the_run_beyond_the_maximum_entry_angle_ends_the_run() -> void:
+	# Fast, so the speed left along the old wall after the collision would still run on.
+	var degrees := _tuning.wall_run_max_entry_angle + 5.0
+	var velocity := _meet_wall(_toward_wall(60.0, GLANCING))
+	var normal := _turned_normal(-degrees)
+	var collided := velocity - normal * minf(velocity.dot(normal), 0.0)
+	assert_float(collided.dot(FORWARD)).is_greater(_tuning.wall_run_end_speed)
+	velocity = _movement.step(_moving(), _on_other_wall(WALL_ID + 1, normal), collided, DELTA)
+	assert_int(_movement.state()).is_equal(RunnerMovement.State.AIR)
+	# It collides normally: the collision's velocity carries on, in the air.
+	assert_bool(_horizontal(velocity).is_equal_approx(_horizontal(collided))).is_true()

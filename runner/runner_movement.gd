@@ -69,8 +69,10 @@ func step(intent: Intent, contact: Contact, velocity: Vector3, delta: float) -> 
 			var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 			var jump := _wall_jump(horizontal, _wall_normal)
 			return _finish(jump, false, contact)
-		if _wall_run_continues(grounded, contact, velocity):
-			return _finish(_wall_run(velocity, delta), false, contact)
+		var next_normal := _next_wall_normal(grounded, contact, velocity)
+		if not next_normal.is_zero_approx():
+			_locked_wall_id = contact.wall_id
+			return _finish(_wall_run(velocity, next_normal, delta), false, contact)
 		# Ends keeping its velocity; a landing goes on through the ground states below. Leaving
 		# the wall in the air starts a coyote time for a Wall-jump off it.
 		if not grounded:
@@ -345,16 +347,33 @@ func _start_wall_run(contact: Contact, velocity: Vector3) -> Vector3:
 	return _wall_direction * speed + Vector3.UP * vertical
 
 
-## True if a Wall-run goes on: still in the air, still touching a wall, and fast enough.
-func _wall_run_continues(grounded: bool, contact: Contact, velocity: Vector3) -> bool:
+## Horizontal unit normal of the wall a Wall-run goes on along, or zero if the run ends. It goes
+## on while the Runner is in the air, touching a wall, and fast enough along it. That wall's
+## normal may turn by up to the follow angle from the one being run (a curve). A sharper turn
+## goes on only onto a wall blocking the run within the maximum entry angle (an inside corner);
+## a sharper turn away is an outside corner.
+func _next_wall_normal(grounded: bool, contact: Contact, velocity: Vector3) -> Vector3:
 	if grounded or not contact.on_wall or not _is_wall(contact.wall_normal):
-		return false
-	return velocity.dot(_wall_direction) >= _tuning.wall_run_end_speed
+		return Vector3.ZERO
+	var normal := _horizontal_unit(contact.wall_normal)
+	var speed := _before_wall_collision(velocity, normal).dot(_wall_direction)
+	if speed < _tuning.wall_run_end_speed:
+		return Vector3.ZERO
+	if _wall_normal.angle_to(normal) <= deg_to_rad(_tuning.wall_run_follow_angle):
+		return normal
+	var head_on := asin(clampf(-_wall_direction.dot(normal), 0.0, 1.0))
+	if head_on > 0.0 and head_on <= deg_to_rad(_tuning.wall_run_max_entry_angle):
+		return normal
+	return Vector3.ZERO
 
 
-## A Wall-run arcs under reduced gravity and slows gently along the wall. Input plays no part.
-func _wall_run(velocity: Vector3, delta: float) -> Vector3:
-	var speed := maxf(velocity.dot(_wall_direction) - _tuning.wall_run_slowdown * delta, 0.0)
+## A Wall-run arcs under reduced gravity and slows gently along the wall with horizontal unit
+## [param normal], turning with it if it has turned. Input plays no part.
+func _wall_run(velocity: Vector3, normal: Vector3, delta: float) -> Vector3:
+	var along := _before_wall_collision(velocity, normal).dot(_wall_direction)
+	var speed := maxf(along - _tuning.wall_run_slowdown * delta, 0.0)
+	_wall_normal = normal
+	_wall_direction = _along_wall(_wall_direction, normal).normalized()
 	var vertical := velocity.y - _tuning.gravity * _tuning.wall_run_gravity_scale * delta
 	return _wall_direction * speed + Vector3.UP * vertical
 
@@ -382,12 +401,13 @@ func _is_wall(normal: Vector3) -> bool:
 
 
 ## Horizontal velocity as it was before the engine's collision with the wall of [param normal]
-## took away the speed going into it: the speed into the wall is whichever of [param velocity]
-## and the last step's velocity goes into it more.
+## took away the speed going into it: the speed toward the wall is whichever of [param velocity]
+## and the last step's velocity goes into it more. Speed away from a wall that curves away is
+## kept.
 func _before_wall_collision(velocity: Vector3, normal: Vector3) -> Vector3:
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
-	var into := minf(minf(horizontal.dot(normal), _last_velocity.dot(normal)), 0.0)
-	return _along_wall(horizontal, normal) + normal * into
+	var toward := minf(horizontal.dot(normal), _last_velocity.dot(normal))
+	return _along_wall(horizontal, normal) + normal * toward
 
 
 ## The part of [param horizontal] along a wall with horizontal unit [param normal].

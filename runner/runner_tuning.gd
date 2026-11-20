@@ -73,6 +73,9 @@ const MIN_SLIDE_BOOST_COOLDOWN := 0.01
 ## The held direction may point away from the wall by up to this, measured from parallel to it,
 ## and still start a Wall-run, degrees.
 @export_range(0.0, 90.0, 0.5, "suffix:°") var wall_run_input_angle: float = 17.5
+## A Wall-run follows a wall whose normal turns by up to this from one frame to the next (a
+## curve); a sharper turn away is an outside corner and ends the run, degrees.
+@export_range(0.0, 90.0, 0.5, "suffix:°") var wall_run_follow_angle: float = 30.0
 ## A surface whose normal is within this of horizontal is a wall that can be run, degrees.
 @export_range(0.0, 45.0, 0.5, "suffix:°") var wall_max_tilt: float = 14.5
 ## Gravity during a Wall-run, as a multiple of gravity.
