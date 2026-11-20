@@ -12,6 +12,9 @@ const LEDGE_PROBE_AHEAD := 0.3
 ## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
 ## under the Runner for a top, m.
 const LEDGE_MIN_TOP := 0.05
+## How many rays round the edge of the body's footprint measure the room on a ledge's top, besides
+## one up its middle.
+const ROOM_RAYS_AROUND := 8
 ## Greatest spacing of the ledge probe's rays up a face, m. They are spaced evenly from
 ## [constant LEDGE_MIN_TOP] above the feet to as far below Mantle reach, so a face is found
 ## however near its top is to the reach.
@@ -95,9 +98,9 @@ func is_mantling() -> bool:
 ## of the body, whose top is above the feet and within Mantle reach. Null if there is none, or
 ## no direction. Looks down onto the top a body radius inside the edge, from the first height up
 ## the face where the way ahead is open, so a ceiling over the top isn't taken for the top. Then
-## measures the room above the top with a ray, and finds nothing if the body, as it is now,
-## can't rise straight up until its feet are level with the top (a shape overlap query misses
-## CSG and trimesh ceilings).
+## measures the room above the top with rays across the body's footprint there, and finds
+## nothing if the body, as it is now, can't rise straight up until its feet are level with the
+## top (a shape overlap query misses CSG and trimesh ceilings).
 func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 	var heading := Vector3(direction.x, 0.0, direction.z)
 	if heading.is_zero_approx():
@@ -119,9 +122,24 @@ func find_ledge(direction: Vector3) -> RunnerMovement.LedgeContact:
 	var top: Vector3 = top_hit["position"]
 	if test_move(global_transform, Vector3.UP * (top.y - feet)):
 		return null
-	var above := _cast(top, top + Vector3.UP * _standing_height)
-	var clear := INF if above.is_empty() else (above["position"] as Vector3).y - top.y
+	var clear := _room_above(top)
 	return RunnerMovement.LedgeContact.new(normal, top.y - feet, clear)
+
+
+## The room above a ledge's top for a body standing with its middle at [param middle], on the
+## top: the lowest a ray straight up finds anything, from the middle and from points round the
+## edge of the body's footprint, m; INF if none finds anything within standing height.
+func _room_above(middle: Vector3) -> float:
+	var room := INF
+	for index: int in ROOM_RAYS_AROUND + 1:
+		var from := middle
+		if index > 0:
+			var angle := TAU * index / ROOM_RAYS_AROUND
+			from += Vector3.FORWARD.rotated(Vector3.UP, angle) * _capsule.radius
+		var above := _cast(from, from + Vector3.UP * _standing_height)
+		if not above.is_empty():
+			room = minf(room, (above["position"] as Vector3).y - middle.y)
+	return room
 
 
 ## Turns the body and pitches the head by [param relative] pixels of mouse movement. Leaves the

@@ -991,3 +991,22 @@ func test_the_ledge_probe_finds_a_thin_lip_just_under_mantle_reach() -> void:
 	assert_object(ledge).is_not_null()
 	if ledge != null:
 		assert_float(ledge.top_height).is_equal_approx(top, 0.02)
+
+
+func test_the_ledge_probe_measures_the_room_under_a_ceiling_over_part_of_the_body() -> void:
+	# A slab 0.7 m over the 0.5 m top, starting a little beyond where the body's middle would
+	# stand on it: it is over the far part of the body only.
+	var top := 0.5
+	var room := 0.7
+	var world := _world_with_box(top)
+	var front := BOX_FACE_Z - RUNNER_RADIUS - 0.15
+	var size := Vector3(4.0, 0.3, 3.0)
+	_add_csg_box(world, size, Vector3(0.0, top + room + size.y / 2.0, front - size.z / 2.0))
+	var runner := _add_runner(world, 0.0)
+	await scene_runner(world).simulate_frames(5, 16)
+
+	var ledge := runner.find_ledge(Vector3.FORWARD)
+
+	assert_object(ledge).is_not_null()
+	if ledge != null:
+		assert_float(ledge.clear_height).is_equal_approx(room, 0.02)
