@@ -10,7 +10,9 @@ extends Marker3D
 enum Size {
 	## Within a jump at Run speed.
 	SHORT,
-	## Beyond a jump at Run speed, but within one at the speed a Slide reaches.
+	## Beyond a jump at Run speed, landing without a Mantle, but within one at the speed a Slide
+	## begins with. A jump at Run speed that ends in a Mantle onto the far edge may still reach
+	## across.
 	LONG,
 	## Beyond a jump at the speed a Slide begins with, but within one at the speed a Slide begun
 	## at the top of the Slope that runs right to its near edge reaches at the bottom.
@@ -18,5 +20,6 @@ enum Size {
 }
 
 ## How far the Gap reaches: a Short gap needs only Run speed to jump across, a Long gap the speed
-## a Slide reaches, and a Wide gap the speed a Slide gains down the Slope before it.
+## a Slide begins with to land beyond it without a Mantle, and a Wide gap the speed a Slide gains
+## down the Slope before it.
 @export var size := Size.SHORT
