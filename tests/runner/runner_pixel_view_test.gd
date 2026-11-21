@@ -50,7 +50,7 @@ func _add_runner(world: Node3D) -> Runner:
 
 
 ## The low-res view the Runner draws the world into.
-func _pixel_view(runner: Runner) -> SubViewport:
+func _low_res_viewport(runner: Runner) -> SubViewport:
 	var views := runner.find_children("*", "SubViewport", true, false)
 	assert_int(views.size()).is_equal(1)
 	return views[0]
@@ -72,7 +72,7 @@ func test_the_world_is_drawn_240_pixels_tall_and_as_wide_as_the_window_aspect() 
 	await scene.simulate_frames(2, 16)
 
 	# 2.4:1, so 240 tall is 576 wide.
-	assert_vector(_pixel_view(runner).size).is_equal(Vector2i(576, VIEW_HEIGHT))
+	assert_vector(_low_res_viewport(runner).size).is_equal(Vector2i(576, VIEW_HEIGHT))
 
 
 func test_the_view_widens_when_the_window_does() -> void:
@@ -81,12 +81,12 @@ func test_the_view_widens_when_the_window_does() -> void:
 	var scene := scene_runner(runner.get_parent())
 	await scene.simulate_frames(2, 16)
 	# 4:3.
-	assert_vector(_pixel_view(runner).size).is_equal(Vector2i(320, VIEW_HEIGHT))
+	assert_vector(_low_res_viewport(runner).size).is_equal(Vector2i(320, VIEW_HEIGHT))
 
 	get_tree().root.size = Vector2i(2560, 1080)
 	await scene.simulate_frames(2, 16)
 	# 64:27.
-	assert_vector(_pixel_view(runner).size).is_equal(Vector2i(569, VIEW_HEIGHT))
+	assert_vector(_low_res_viewport(runner).size).is_equal(Vector2i(569, VIEW_HEIGHT))
 
 
 func test_the_view_is_scaled_up_over_the_whole_window_with_nearest_neighbour_filtering() -> void:
@@ -94,7 +94,7 @@ func test_the_view_is_scaled_up_over_the_whole_window_with_nearest_neighbour_fil
 	var scene := scene_runner(runner.get_parent())
 	await scene.simulate_frames(2, 16)
 
-	var screen := _screen_of(runner, _pixel_view(runner))
+	var screen := _screen_of(runner, _low_res_viewport(runner))
 	assert_object(screen).is_not_null()
 	assert_bool(screen.is_visible_in_tree()).is_true()
 	assert_int(screen.texture_filter).is_equal(CanvasItem.TEXTURE_FILTER_NEAREST)
@@ -108,7 +108,7 @@ func test_the_view_shows_the_runners_world() -> void:
 	var scene := scene_runner(runner.get_parent())
 	await scene.simulate_frames(2, 16)
 
-	var view := _pixel_view(runner)
+	var view := _low_res_viewport(runner)
 	assert_object(view.find_world_3d()).is_same(runner.get_world_3d())
 	assert_object(view.get_camera_3d()).is_not_null()
 
@@ -116,9 +116,11 @@ func test_the_view_shows_the_runners_world() -> void:
 ## Asserts the pixel view's camera sees exactly what the head camera does.
 func _assert_pixel_camera_matches_head(runner: Runner) -> void:
 	var head := runner.get_viewport().get_camera_3d()
-	var pixel := _pixel_view(runner).get_camera_3d()
+	var pixel := _low_res_viewport(runner).get_camera_3d()
 	assert_bool(pixel.global_transform.is_equal_approx(head.global_transform)).is_true()
 	assert_float(pixel.fov).is_equal(head.fov)
+	assert_float(pixel.near).is_equal(head.near)
+	assert_float(pixel.far).is_equal(head.far)
 
 
 func test_the_pixel_camera_follows_the_head_camera_moving_looking_and_crouching() -> void:
@@ -156,7 +158,21 @@ func test_the_pixel_camera_follows_the_head_camera_with_a_changed_fov() -> void:
 	var scene := scene_runner(world)
 	await scene.simulate_frames(2, 16)
 
-	assert_float(_pixel_view(runner).get_camera_3d().fov).is_equal(100.0)
+	assert_float(_low_res_viewport(runner).get_camera_3d().fov).is_equal(100.0)
+
+
+func test_the_pixel_camera_follows_the_head_camera_with_changed_near_and_far() -> void:
+	var runner := _add_runner(_world_with_floor())
+	var scene := scene_runner(runner.get_parent())
+	await scene.simulate_frames(2, 16)
+	var head := runner.get_viewport().get_camera_3d()
+	head.near = 0.2
+	head.far = 300.0
+	await scene.simulate_frames(1, 16)
+
+	var pixel := _low_res_viewport(runner).get_camera_3d()
+	assert_float(pixel.near).is_equal_approx(0.2, 0.0001)
+	assert_float(pixel.far).is_equal_approx(300.0, 0.0001)
 
 
 func test_the_pixel_camera_rolls_with_the_head_camera_during_a_wall_run() -> void:
@@ -200,8 +216,8 @@ func test_the_pixel_camera_rolls_with_the_head_camera_during_a_wall_run() -> voi
 ## view, and on top of it.
 func _assert_drawn_sharp_over_the_pixel_view(ui: CanvasLayer, runner: Runner) -> void:
 	assert_object(ui.get_viewport()).is_same(runner.get_viewport())
-	assert_bool(_pixel_view(runner).is_ancestor_of(ui)).is_false()
-	var screen := _screen_of(runner, _pixel_view(runner))
+	assert_bool(_low_res_viewport(runner).is_ancestor_of(ui)).is_false()
+	var screen := _screen_of(runner, _low_res_viewport(runner))
 	assert_int(ui.layer).is_greater(screen.get_canvas_layer_node().layer)
 
 
@@ -212,8 +228,8 @@ func test_the_course_draws_the_world_pixelated_with_the_hud_and_end_screen_sharp
 	await scene.simulate_frames(2, 16)
 
 	var runner: Runner = course.get_node("Runner")
-	assert_object(_pixel_view(runner).find_world_3d()).is_same(course.get_world_3d())
-	assert_int(_pixel_view(runner).size.y).is_equal(VIEW_HEIGHT)
+	assert_object(_low_res_viewport(runner).find_world_3d()).is_same(course.get_world_3d())
+	assert_int(_low_res_viewport(runner).size.y).is_equal(VIEW_HEIGHT)
 	_assert_drawn_sharp_over_the_pixel_view(course.get_node("Hud") as CanvasLayer, runner)
 	_assert_drawn_sharp_over_the_pixel_view(course.get_node("EndScreen") as CanvasLayer, runner)
 
@@ -225,6 +241,6 @@ func test_the_greybox_draws_the_world_pixelated() -> void:
 	var scene := scene_runner(level)
 	await scene.simulate_frames(2, 16)
 
-	assert_object(_pixel_view(runner).find_world_3d()).is_same(level.get_world_3d())
-	assert_int(_pixel_view(runner).size.y).is_equal(VIEW_HEIGHT)
+	assert_object(_low_res_viewport(runner).find_world_3d()).is_same(level.get_world_3d())
+	assert_int(_low_res_viewport(runner).size.y).is_equal(VIEW_HEIGHT)
 	_assert_pixel_camera_matches_head(runner)

@@ -57,8 +57,9 @@ func _ready() -> void:
 	_movement = RunnerMovement.new(tuning, _standing_height)
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
-	# The Player sees the world through the pixel view, which follows this camera; this camera
-	# draws nothing itself, so the world is not also drawn at full resolution under it.
+	# The Player sees the world through the pixel view, which follows this camera. This camera
+	# culls every layer, so no geometry is drawn at full resolution under the pixel view; the
+	# window still clears and draws the environment's sky behind it, hidden by the pixel view.
 	_pixel_view.source = _camera
 	_camera.cull_mask = 0
 	floor_snap_length = tuning.floor_snap_length

@@ -25,11 +25,11 @@ near = 0.05
 layer = -1
 script = ExtResource("2_pixel_view")
 
-[node name="Viewport" type="SubViewport" parent="PixelView"]
+[node name="LowResViewport" type="SubViewport" parent="PixelView"]
 size = Vector2i(427, 240)
 render_target_update_mode = 4
 
-[node name="Camera" type="Camera3D" parent="PixelView/Viewport"]
+[node name="Camera" type="Camera3D" parent="PixelView/LowResViewport"]
 current = true
 near = 0.05
 
