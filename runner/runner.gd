@@ -5,7 +5,8 @@ extends CharacterBody3D
 ## velocity and whether the body is low are decided by RunnerMovement once per physics frame.
 ## Reports whether there is headroom to stand, which wall the body touches and the ledge ahead,
 ## sizes the body as RunnerMovement says, and eases the camera's height after it, its roll
-## during a Wall-run and its dip during a Mantle.
+## during a Wall-run and its dip during a Mantle. The Player sees through a pixel view that follows
+## that camera.
 
 const PITCH_LIMIT := deg_to_rad(89.0)
 ## The ledge probe only finds tops at least this far above the feet, so it never takes the floor
@@ -45,6 +46,7 @@ var _body_low := false
 @onready var _body: CollisionShape3D = $Body
 @onready var _head: Node3D = $Head
 @onready var _camera: Camera3D = $Head/Camera
+@onready var _pixel_view: PixelView = $PixelView
 
 
 func _ready() -> void:
@@ -55,6 +57,10 @@ func _ready() -> void:
 	_movement = RunnerMovement.new(tuning, _standing_height)
 	_eye_below_top = _standing_height - _head.position.y
 	_camera.fov = tuning.fov
+	# The Player sees the world through the pixel view, which follows this camera; this camera
+	# draws nothing itself, so the world is not also drawn at full resolution under it.
+	_pixel_view.source = _camera
+	_camera.cull_mask = 0
 	floor_snap_length = tuning.floor_snap_length
 	if course_heading.is_zero_approx():
 		course_heading = -global_basis.z
