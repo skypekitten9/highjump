@@ -88,9 +88,11 @@ func test_the_course_lays_a_section_ahead_as_the_runner_runs() -> void:
 
 	# Held forward runs the Runner along the Course on its own.
 	await scene.simulate_frames(120, 16)
+	assert_float(_along(course, _runner_of(course).global_position)).is_greater(10.0)
+	# On past more than the longest Section, so what was laid at the start can't still be enough.
+	await _move_runner_on(scene, course, 60.0)
 
 	var runner_along := _along(course, _runner_of(course).global_position)
-	assert_float(runner_along).is_greater(10.0)
 	assert_float(_laid_end(course)).is_greater(laid_at_start)
 	assert_float(_laid_end(course)).is_greater_equal(runner_along + course.keep_ahead)
 
@@ -204,8 +206,12 @@ func test_the_same_seed_lays_the_same_course() -> void:
 	var second := _course()
 	second.section_list = first.section_list
 
-	var first_picked := await _picked_while_moving_to(first, 500.0)
-	var second_picked := await _picked_while_moving_to(second, 500.0)
+	# How far ahead of 500 m was laid by the end depends on where the Runner stopped, so only the
+	# Sections starting before it are compared.
+	var before := func(picked: Array) -> bool:
+		return (picked[0] as float) < 500.0
+	var first_picked := (await _picked_while_moving_to(first, 500.0)).filter(before)
+	var second_picked := (await _picked_while_moving_to(second, 500.0)).filter(before)
 
 	assert_array(second_picked).is_equal(first_picked)
 
