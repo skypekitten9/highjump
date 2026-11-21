@@ -18,6 +18,9 @@ const STUCK_FRAMES := 60
 const STUCK_PROGRESS := 0.5
 
 const ACTIONS: Array[StringName] = [&"jump", &"crouch", &"move_left", &"move_right"]
+const WALL_JUMP_GAP := "res://course/sections/wall_jump_gap.tscn"
+const LONG_GAP_WALL_JUMP_GAP := "res://course/sections/long_gap_wall_jump_gap.tscn"
+const WALL_RUN_TO_MANTLE := "res://course/sections/wall_run_to_mantle.tscn"
 
 
 func after_test() -> void:
@@ -82,6 +85,28 @@ func _attempt(path: String, steps: Array[Step]) -> bool:
 			if along - progress[progress.size() - 1 - STUCK_FRAMES] < STUCK_PROGRESS:
 				return false
 	return false
+
+
+## The moves that cross a Wall-jump gap whose near edge is [param edge] m along the Section: jump
+## at its edge onto the first wall on the left, then Wall-jump to each next wall, turning toward
+## it, three times.
+func _wall_jumps_across(edge: float) -> Array[Step]:
+	var steps: Array[Step] = [Step.new(edge - 0.6, &"move_left"), Step.new(edge - 0.1, &"jump")]
+	var toward := &"move_right"
+	var away := &"move_left"
+	for at: float in [1.4, 5.3, 10.6]:
+		steps.append_array(
+			[
+				Step.new(edge + at, away, false),
+				Step.new(edge + at, toward),
+				Step.new(edge + at + 0.1, &"jump"),
+			],
+		)
+		var turned := toward
+		toward = away
+		away = turned
+	steps.append(Step.new(edge + 22.0, away, false))
+	return steps
 
 
 func test_holding_forward_alone_does_not_get_over_a_hurdle() -> void:
@@ -241,3 +266,52 @@ func test_mantling_then_wall_running_off_the_block_clears_the_wall_run_gap() -> 
 		Step.new(24.0, &"move_left", false),
 	]
 	assert_bool(await _attempt(path, steps)).is_true()
+
+
+func test_wall_running_one_wall_of_the_wall_jump_gap_falls_short() -> void:
+	var steps: Array[Step] = [
+		Step.new(7.4, &"move_left"),
+		Step.new(7.9, &"jump"),
+		Step.new(10.0, &"move_left", false),
+	]
+	assert_bool(await _attempt(WALL_JUMP_GAP, steps)).is_false()
+
+
+func test_wall_jumping_from_wall_to_wall_clears_the_wall_jump_gap() -> void:
+	assert_bool(await _attempt(WALL_JUMP_GAP, _wall_jumps_across(8.0))).is_true()
+
+
+func test_slide_jumping_the_long_gap_then_one_wall_run_falls_into_the_wall_jump_gap() -> void:
+	var steps: Array[Step] = [
+		Step.new(10.4, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(13.0, &"crouch", false),
+		Step.new(23.4, &"move_left"),
+		Step.new(23.9, &"jump"),
+		Step.new(26.0, &"move_left", false),
+	]
+	assert_bool(await _attempt(LONG_GAP_WALL_JUMP_GAP, steps)).is_false()
+
+
+func test_slide_jumping_the_long_gap_then_wall_jumping_clears_the_wall_jump_gap() -> void:
+	var steps: Array[Step] = [
+		Step.new(10.4, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(13.0, &"crouch", false),
+	]
+	steps.append_array(_wall_jumps_across(24.0))
+	assert_bool(await _attempt(LONG_GAP_WALL_JUMP_GAP, steps)).is_true()
+
+
+func test_jumping_at_the_tall_block_from_the_floor_falls_into_the_gap_before_it() -> void:
+	var steps: Array[Step] = [Step.new(9.5, &"jump")]
+	assert_bool(await _attempt(WALL_RUN_TO_MANTLE, steps)).is_false()
+
+
+func test_mantling_out_of_a_wall_run_onto_the_tall_block_clears_it() -> void:
+	var steps: Array[Step] = [
+		Step.new(5.0, &"move_left"),
+		Step.new(9.5, &"jump"),
+		Step.new(19.0, &"move_left", false),
+	]
+	assert_bool(await _attempt(WALL_RUN_TO_MANTLE, steps)).is_true()

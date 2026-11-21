@@ -6,8 +6,10 @@ extends GdUnitTestSuite
 const CourseScene := preload("res://course/course.tscn")
 ## How far apart, across, the Sections are laid for probing, so none is found under another, m.
 const SPACING := 20.0
-## How far above and below floor height 0 the probes reach, m.
-const PROBE_REACH := 20.0
+## How far above and below floor height 0, and along a Gap, the probes reach, m.
+const PROBE_REACH := 30.0
+## How many walls a Wall-jump gap has, so that crossing it takes three Wall-jumps.
+const WALL_JUMP_GAP_WALLS := 4
 ## Height of the Runner's standing body, m.
 const STANDING_HEIGHT := 1.8
 ## Radius of the Runner's body, m.
@@ -125,12 +127,16 @@ func _slide_speed() -> float:
 
 
 ## How wide a Gap a jump from the floor at [param speed] can still end in a Mantle onto the far
-## edge, with the default tuning, m: the jump carries until it falls out of Mantle reach of the
-## take-off height, and the body adds its own size, leaving with its middle a body radius past
-## the near edge and finding the far face a body radius and the ledge probe ahead of its middle.
-func _jump_to_mantle_distance(speed: float) -> float:
+## edge, [param rise] m above the take-off, with the default tuning, m: the jump carries until it
+## falls out of Mantle reach of the far edge, and the body adds its own size, leaving with its
+## middle a body radius past the near edge and finding the far face a body radius and the ledge
+## probe ahead of its middle. 0 if the far edge is beyond Mantle reach of the jump's peak.
+func _jump_to_mantle_distance(speed: float, rise := 0.0) -> float:
 	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
-	var fall := sqrt(launch * launch + 2.0 * _tuning.gravity * _tuning.mantle_reach)
+	var room := launch * launch + 2.0 * _tuning.gravity * (_tuning.mantle_reach - rise)
+	if room < 0.0:
+		return 0.0
+	var fall := sqrt(room)
 	var body := 2.0 * RUNNER_RADIUS + _tuning.ledge_probe_ahead
 	return speed * (launch + fall) / _tuning.gravity + body
 
@@ -153,7 +159,10 @@ func test_each_hurdle_is_below_jump_height() -> void:
 
 
 func test_each_block_is_above_jump_height_and_within_mantle_reach_of_it() -> void:
-	var blocks := _obstacles(await _lay_all(), Block)
+	var blocks := _obstacles(await _lay_all(), Block).filter(
+		func(block: Node3D) -> bool:
+			return not (block as Block).from_wall_run,
+	)
 	assert_int(blocks.size()).is_greater_equal(1)
 	for block: Node3D in blocks:
 		var top := _top(block)
@@ -162,6 +171,18 @@ func test_each_block_is_above_jump_height_and_within_mantle_reach_of_it() -> voi
 		var high := "%s is beyond Mantle reach of jump height" % _named(block)
 		var reach := _jump_height() + _tuning.mantle_reach
 		assert_float(top).override_failure_message(high).is_less_equal(reach)
+
+
+func test_each_block_reached_from_a_wall_run_is_beyond_mantle_reach_of_jump_height() -> void:
+	var blocks := _obstacles(await _lay_all(), Block).filter(
+		func(block: Node3D) -> bool:
+			return (block as Block).from_wall_run,
+	)
+	assert_int(blocks.size()).is_greater_equal(1)
+	for block: Node3D in blocks:
+		var message := "%s is within Mantle reach of jump height" % _named(block)
+		var reach := _jump_height() + _tuning.mantle_reach
+		assert_float(_top(block)).override_failure_message(message).is_greater(reach)
 
 
 func test_each_overhead_bar_is_above_crouch_height_and_below_standing_height() -> void:
@@ -184,7 +205,9 @@ func test_no_overhead_bar_can_be_mantled_over_instead() -> void:
 
 
 func test_each_gap_has_floor_at_0_right_up_to_both_of_its_edges() -> void:
-	var gaps := _obstacles(await _lay_all(), Gap)
+	var sections := await _lay_all()
+	var gaps := _obstacles(sections, Gap)
+	gaps.append_array(_obstacles(sections, WallJumpGap))
 	assert_int(gaps.size()).is_greater_equal(1)
 	for gap: Node3D in gaps:
 		var length := _gap_length(gap)
@@ -226,9 +249,9 @@ func test_each_wall_run_gap_is_beyond_a_jump_at_run_speed_even_one_ending_in_a_m
 	var gaps := _obstacles(await _lay_all(), WallRunGap)
 	assert_int(gaps.size()).is_greater_equal(2)
 	var jump := _jump_distance(_tuning.run_speed)
-	var jump_to_mantle := _jump_to_mantle_distance(_tuning.run_speed)
 	for gap: Node3D in gaps:
 		var length := _gap_length(gap)
+		var jump_to_mantle := _jump_to_mantle_distance(_tuning.run_speed, _rise_beyond(gap))
 		var short := "%s is within a jump at Run speed" % _named(gap)
 		assert_float(length).override_failure_message(short).is_greater(jump)
 		var mantled := "%s is within a jump at Run speed that ends in a Mantle" % _named(gap)
@@ -242,11 +265,67 @@ func test_each_wall_run_gap_has_a_wall_to_wall_run_across_it_at_wall_run_entry_s
 		assert_str(trouble).override_failure_message(message).is_empty()
 
 
+func test_each_wall_jump_gap_has_four_walls_on_alternating_sides_overlapping_along_it() -> void:
+	var gaps := _obstacles(await _lay_all(), WallJumpGap)
+	assert_int(gaps.size()).is_greater_equal(1)
+	for gap: Node3D in gaps:
+		var walls := _walls_along(gap)
+		var count := "%s has %d walls" % [_named(gap), walls.size()]
+		assert_int(walls.size()).override_failure_message(count).is_equal(WALL_JUMP_GAP_WALLS)
+		for i: int in range(1, walls.size()):
+			var same := "%s has walls %d and %d on the same side" % [_named(gap), i, i + 1]
+			assert_float(walls[i].x).override_failure_message(same).is_not_equal(walls[i - 1].x)
+			var apart := "%s has wall %d start after wall %d ends" % [_named(gap), i + 1, i]
+			assert_float(walls[i].y).override_failure_message(apart).is_less(walls[i - 1].z)
+
+
+func test_no_wall_of_a_wall_jump_gap_is_long_enough_to_cross_it_on_one_wall_run() -> void:
+	for gap: Node3D in _obstacles(await _lay_all(), WallJumpGap):
+		var length := _gap_length(gap)
+		var jump := _jump_distance(_tuning.run_speed)
+		var walls := _walls_along(gap)
+		for i: int in walls.size():
+			var message := "%s: wall %d and a jump at Run speed off its end span the Gap" % [
+				_named(gap),
+				i + 1,
+			]
+			var reach := walls[i].z - walls[i].y + jump
+			assert_float(reach).override_failure_message(message).is_less(length)
+
+
+## The walls alongside [param gap], probed at the height of the Runner's middle down the middle of
+## the Gap, in order along it: for each, the side it is on (-1 left, 1 right), and where along
+## the Gap it starts and ends, m.
+func _walls_along(gap: Node3D) -> Array[Vector3]:
+	var walls: Array[Vector3] = []
+	var ahead := -gap.global_basis.z
+	var length := _gap_length(gap)
+	for side: float in [-1.0, 1.0]:
+		var start := NAN
+		var along := 0.0
+		while along <= length:
+			var middle := gap.global_position + ahead * along + Vector3.UP * STANDING_HEIGHT / 2.0
+			var found := _wall_side(gap, middle, side) != 0.0
+			if found and is_nan(start):
+				start = along
+			elif not found and not is_nan(start):
+				walls.append(Vector3(side, start, along))
+				start = NAN
+			along += GAP_PROBE_STEP
+		if not is_nan(start):
+			walls.append(Vector3(side, start, length))
+	walls.sort_custom(
+		func(a: Vector3, b: Vector3) -> bool:
+			return a.y < b.y,
+	)
+	return walls
+
+
 ## Follows a Wall-run across [param gap] at the Wall-run entry speed, begun by a jump at its near
 ## edge: the Runner's body follows the Wall-run's arc and slowdown with the default tuning. It
 ## must keep a near-vertical wall on the same side, from its feet to its head, until it is over
 ## the floor beyond, without slowing enough to end the Wall-run, and get there with the floor's
-## edge within Mantle reach. Returns what went wrong, or an empty String.
+## edge within Mantle reach, however high it is. Returns what went wrong, or an empty String.
 func _wall_run_across(gap: Node3D) -> String:
 	var length := _gap_length(gap)
 	var ahead := -gap.global_basis.z
@@ -269,6 +348,12 @@ func _wall_run_across(gap: Node3D) -> String:
 		rise -= wall_gravity * DELTA
 		feet += rise * DELTA
 		along += speed * DELTA
-	if feet < -_tuning.mantle_reach:
+	if feet < _rise_beyond(gap) - _tuning.mantle_reach:
 		return "the floor beyond is out of Mantle reach"
 	return ""
+
+
+## How far the floor beyond [param gap] is above the floor at its marker, m.
+func _rise_beyond(gap: Node3D) -> float:
+	var beyond := gap.global_position - gap.global_basis.z * _gap_length(gap)
+	return _floor_height(gap, beyond) - gap.global_position.y
