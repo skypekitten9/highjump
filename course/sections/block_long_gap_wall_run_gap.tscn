@@ -28,7 +28,7 @@ script = ExtResource("2_block")
 [node name="LongGap" type="Marker3D" parent="."]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -26)
 script = ExtResource("3_gap")
-long = true
+size = 1
 
 [node name="FloorMiddle" type="CSGBox3D" parent="."]
 position = Vector3(0, -0.5, -39.25)

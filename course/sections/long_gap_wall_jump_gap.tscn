@@ -1,0 +1,63 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://course/section.gd" id="1_section"]
+[ext_resource type="Script" path="res://course/obstacles/gap.gd" id="2_gap"]
+[ext_resource type="Script" path="res://course/obstacles/wall_jump_gap.gd" id="3_wall_jump_gap"]
+[ext_resource type="StandardMaterial3D" path="res://palette/floor_material.tres" id="4_floor_material"]
+[ext_resource type="StandardMaterial3D" path="res://palette/obstacle_material.tres" id="5_obstacle_material"]
+
+[node name="LongGapWallJumpGap" type="Node3D"]
+script = ExtResource("1_section")
+length = 52.5
+difficulty = 4
+
+[node name="FloorBefore" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.5, -6)
+use_collision = true
+size = Vector3(8, 1, 12)
+material = ExtResource("4_floor_material")
+
+[node name="LongGap" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -12)
+script = ExtResource("2_gap")
+size = 1
+
+[node name="FloorBetween" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.5, -21.75)
+use_collision = true
+size = Vector3(8, 1, 4.5)
+material = ExtResource("4_floor_material")
+
+[node name="WallJumpGap" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -24)
+script = ExtResource("3_wall_jump_gap")
+
+[node name="Wall1" type="CSGBox3D" parent="."]
+position = Vector3(-1.75, 2, -27.25)
+use_collision = true
+size = Vector3(0.5, 12, 5.5)
+material = ExtResource("5_obstacle_material")
+
+[node name="Wall2" type="CSGBox3D" parent="."]
+position = Vector3(1.75, 2, -30.75)
+use_collision = true
+size = Vector3(0.5, 12, 6.5)
+material = ExtResource("5_obstacle_material")
+
+[node name="Wall3" type="CSGBox3D" parent="."]
+position = Vector3(-1.75, 2, -33.75)
+use_collision = true
+size = Vector3(0.5, 12, 4.5)
+material = ExtResource("5_obstacle_material")
+
+[node name="Wall4" type="CSGBox3D" parent="."]
+position = Vector3(1.75, 2, -39.75)
+use_collision = true
+size = Vector3(0.5, 12, 10.5)
+material = ExtResource("5_obstacle_material")
+
+[node name="FloorAfter" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.5, -48.5)
+use_collision = true
+size = Vector3(8, 1, 8)
+material = ExtResource("4_floor_material")

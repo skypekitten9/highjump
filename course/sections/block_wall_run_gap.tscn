@@ -1,0 +1,47 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://course/section.gd" id="1_section"]
+[ext_resource type="Script" path="res://course/obstacles/block.gd" id="2_block"]
+[ext_resource type="Script" path="res://course/obstacles/wall_run_gap.gd" id="3_wall_run_gap"]
+[ext_resource type="StandardMaterial3D" path="res://palette/floor_material.tres" id="4_floor_material"]
+[ext_resource type="StandardMaterial3D" path="res://palette/obstacle_material.tres" id="5_obstacle_material"]
+
+[node name="BlockWallRunGap" type="Node3D"]
+script = ExtResource("1_section")
+length = 32.0
+difficulty = 3
+
+[node name="FloorBefore" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.5, -7)
+use_collision = true
+size = Vector3(8, 1, 14)
+material = ExtResource("4_floor_material")
+
+[node name="Block" type="CSGBox3D" parent="."]
+position = Vector3(0, 1, -11)
+use_collision = true
+size = Vector3(8, 2, 6)
+material = ExtResource("5_obstacle_material")
+script = ExtResource("2_block")
+
+[node name="WallRunGap" type="Marker3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2, -14)
+script = ExtResource("3_wall_run_gap")
+
+[node name="Wall" type="CSGBox3D" parent="."]
+position = Vector3(-3.75, 3, -17.75)
+use_collision = true
+size = Vector3(0.5, 14, 15.5)
+material = ExtResource("5_obstacle_material")
+
+[node name="Landing" type="CSGBox3D" parent="."]
+position = Vector3(0, 1, -25.5)
+use_collision = true
+size = Vector3(8, 2, 4)
+material = ExtResource("4_floor_material")
+
+[node name="FloorAfter" type="CSGBox3D" parent="."]
+position = Vector3(0, -0.5, -27.75)
+use_collision = true
+size = Vector3(8, 1, 8.5)
+material = ExtResource("4_floor_material")
