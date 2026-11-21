@@ -36,9 +36,13 @@ const MIN_STALL_TIME := 0.05
 ## How far behind the Runner a Section must have ended before it is freed, m.
 @export_range(0.0, 500.0, 1.0, "or_greater", "suffix:m") var keep_behind: float = 40.0
 ## The Distance a Section must start at for difficulty 2 to be picked, m.
-@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_2_unlock: float = 150.0
+@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_2_unlock: float = 50.0
 ## The Distance a Section must start at for difficulty 3 to be picked, m.
-@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_3_unlock: float = 400.0
+@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_3_unlock: float = 120.0
+## The Distance a Section must start at for difficulty 4 to be picked, m.
+@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_4_unlock: float = 200.0
+## The Distance a Section must start at for difficulty 5 to be picked, m.
+@export_range(0.0, 2000.0, 1.0, "or_greater", "suffix:m") var difficulty_5_unlock: float = 300.0
 
 ## How far below floor height 0 the Runner's feet must be for it to have fallen, m.
 @export_range(0.0, 100.0, 0.5, "or_greater", "suffix:m") var fall_depth: float = 10.0
@@ -162,7 +166,12 @@ func _start_attempt() -> void:
 	_sections.keep_ahead = keep_ahead
 	_sections.keep_behind = keep_behind
 	_sections.distance_start = runner_start
-	_sections.unlocks = { 2: difficulty_2_unlock, 3: difficulty_3_unlock }
+	_sections.unlocks = {
+		2: difficulty_2_unlock,
+		3: difficulty_3_unlock,
+		4: difficulty_4_unlock,
+		5: difficulty_5_unlock,
+	}
 	_sections.restart(course_seed)
 	_sections.follow(runner_along())
 

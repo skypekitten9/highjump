@@ -74,8 +74,9 @@ func _free_behind(behind: float) -> void:
 		gone.queue_free()
 
 
-## Picks at random a Section to start where the laid Sections reach: one unlocked there, and not
-## the one picked last, unless it is the only one unlocked. Null if none is unlocked.
+## Picks at random a Section to start where the laid Sections reach: first a difficulty unlocked
+## there, each with Sections to pick equally likely, then one of its Sections. Never the one picked
+## last, unless it is the only one unlocked. Null if none is unlocked.
 func _pick() -> PackedScene:
 	var unlocked: Array[PackedScene] = []
 	for scene: PackedScene in section_list.sections:
@@ -85,7 +86,17 @@ func _pick() -> PackedScene:
 		unlocked.erase(_last_picked)
 	if unlocked.is_empty():
 		return null
-	return unlocked[_rng.randi_range(0, unlocked.size() - 1)]
+	var by_difficulty: Dictionary[int, Array] = { }
+	for scene: PackedScene in unlocked:
+		var difficulty := _difficulty_of(scene)
+		if not by_difficulty.has(difficulty):
+			by_difficulty[difficulty] = []
+		by_difficulty[difficulty].append(scene)
+	var difficulties := by_difficulty.keys()
+	difficulties.sort()
+	var difficulty: int = difficulties[_rng.randi_range(0, difficulties.size() - 1)]
+	var scenes: Array = by_difficulty[difficulty]
+	return scenes[_rng.randi_range(0, scenes.size() - 1)]
 
 
 ## True if a Section of [param difficulty] may start where the laid Sections reach.
