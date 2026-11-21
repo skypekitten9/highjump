@@ -2,34 +2,16 @@
 
 [ext_resource type="PackedScene" path="res://runner/runner.tscn" id="1_runner"]
 [ext_resource type="Script" path="res://levels/level.gd" id="2_level"]
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-sky_top_color = Color(0.968627, 0.843137, 0.580392, 1)
-sky_horizon_color = Color(0.968627, 0.843137, 0.580392, 1)
-ground_bottom_color = Color(1, 0.603922, 0, 1)
-ground_horizon_color = Color(1, 0.603922, 0, 1)
-
-[sub_resource type="Sky" id="Sky_sky"]
-sky_material = SubResource("ProceduralSkyMaterial_sky")
-
-[sub_resource type="Environment" id="Environment_env"]
-background_mode = 2
-sky = SubResource("Sky_sky")
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.984314, 0.631373, 0.494118, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ramp"]
-albedo_color = Color(1, 0.603922, 0, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_block"]
-albedo_color = Color(0.933333, 0.384314, 0, 1)
+[ext_resource type="StandardMaterial3D" path="res://palette/floor_material.tres" id="3_floor_material"]
+[ext_resource type="StandardMaterial3D" path="res://palette/ramp_material.tres" id="4_ramp_material"]
+[ext_resource type="StandardMaterial3D" path="res://palette/obstacle_material.tres" id="5_obstacle_material"]
+[ext_resource type="Environment" path="res://palette/environment.tres" id="6_environment"]
 
 [node name="Greybox" type="Node3D"]
 script = ExtResource("2_level")
 
 [node name="Environment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_env")
+environment = ExtResource("6_environment")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
 sky_mode = 1
@@ -40,7 +22,7 @@ shadow_enabled = true
 position = Vector3(0, -0.5, 0)
 use_collision = true
 size = Vector3(200, 1, 200)
-material = SubResource("StandardMaterial3D_floor")
+material = ExtResource("3_floor_material")
 
 [node name="Ramps" type="Node3D" parent="."]
 
@@ -50,13 +32,13 @@ rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 5.495, 0, 5.495, 2)
 depth = 3.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Top20" type="CSGBox3D" parent="Ramps"]
 position = Vector3(-12, 1, -12.995)
 use_collision = true
 size = Vector3(3, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ramp35" type="CSGPolygon3D" parent="Ramps"]
 position = Vector3(-5.5, 0, -6)
@@ -64,13 +46,13 @@ rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 2.856, 0, 2.856, 2)
 depth = 3.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Top35" type="CSGBox3D" parent="Ramps"]
 position = Vector3(-7, 1, -10.356)
 use_collision = true
 size = Vector3(3, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ramp45" type="CSGPolygon3D" parent="Ramps"]
 position = Vector3(-0.5, 0, -6)
@@ -78,13 +60,13 @@ rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 2, 0, 2, 2)
 depth = 3.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Top45" type="CSGBox3D" parent="Ramps"]
 position = Vector3(-2, 1, -9.5)
 use_collision = true
 size = Vector3(3, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ramp55" type="CSGPolygon3D" parent="Ramps"]
 position = Vector3(4.5, 0, -6)
@@ -92,13 +74,13 @@ rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 1.4, 0, 1.4, 2)
 depth = 3.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Top55" type="CSGBox3D" parent="Ramps"]
 position = Vector3(3, 1, -8.9)
 use_collision = true
 size = Vector3(3, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Steps" type="Node3D" parent="."]
 
@@ -106,50 +88,50 @@ material = SubResource("StandardMaterial3D_block")
 position = Vector3(9, 0.125, -6.2)
 use_collision = true
 size = Vector3(3, 0.25, 0.4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Step2" type="CSGBox3D" parent="Steps"]
 position = Vector3(9, 0.25, -6.6)
 use_collision = true
 size = Vector3(3, 0.5, 0.4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Step3" type="CSGBox3D" parent="Steps"]
 position = Vector3(9, 0.375, -7)
 use_collision = true
 size = Vector3(3, 0.75, 0.4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Step4" type="CSGBox3D" parent="Steps"]
 position = Vector3(9, 0.5, -8.9)
 use_collision = true
 size = Vector3(3, 1, 3.4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Boxes" type="Node3D" parent="."]
 
 [node name="SmallBox" type="CSGBox3D" parent="Boxes"]
 position = Vector3(-6, 0.5, 6)
 use_collision = true
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="LongBox" type="CSGBox3D" parent="Boxes"]
 position = Vector3(-2, 0.5, 7)
 use_collision = true
 size = Vector3(3, 1, 1)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="TallBox" type="CSGBox3D" parent="Boxes"]
 position = Vector3(3, 1, 6)
 use_collision = true
 size = Vector3(2, 2, 2)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="HighLedge" type="CSGBox3D" parent="Boxes"]
 position = Vector3(10, 2, 7)
 use_collision = true
 size = Vector3(6, 4, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ledges" type="Node3D" parent="."]
 
@@ -157,13 +139,13 @@ material = SubResource("StandardMaterial3D_block")
 position = Vector3(-8, 0.5, 13)
 use_collision = true
 size = Vector3(4, 1, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ledge2m" type="CSGBox3D" parent="Ledges"]
 position = Vector3(-2, 1, 13)
 use_collision = true
 size = Vector3(4, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Runner" parent="." instance=ExtResource("1_runner")]
 
@@ -177,7 +159,7 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 30, 2.625, 36, 2.625, 36, 0)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Label" type="Label3D" parent="PlaytestCourse/GentleSlope"]
 position = Vector3(-3, 3, 0)
@@ -194,7 +176,7 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 40, 23.094, 46, 23.094, 46, 0)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="SlideStart" type="Marker3D" parent="PlaytestCourse/LongSteepSlope"]
 position = Vector3(45, 23.094, 0)
@@ -215,7 +197,7 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 30, 8.038, 36, 8.038, 36, 0)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Label" type="Label3D" parent="PlaytestCourse/LongUphill"]
 position = Vector3(-3, 3, 0)
@@ -232,7 +214,7 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, -0.5, 0, 0, 10.723, 5, 16.723, 5, 27.446, 0, 29.446, 0, 40.169, 5, 46.169, 5, 56.892, 0, 56.892, -0.5)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Label" type="Label3D" parent="PlaytestCourse/Valley"]
 position = Vector3(-3, 3, 0)
@@ -250,7 +232,7 @@ rotation_degrees = Vector3(0, -90, 0)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 16, 2.821, 16, 0)
 depth = 40.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Label" type="Label3D" parent="PlaytestCourse/SideTiltedSlope"]
 position = Vector3(-3, 3, 0)
@@ -266,25 +248,25 @@ position = Vector3(0, 0, -90)
 position = Vector3(8, 1.55, 0)
 use_collision = true
 size = Vector3(16, 0.5, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="LowCeiling" type="CSGBox3D" parent="PlaytestCourse/CrouchTunnel"]
 position = Vector3(8, 1.15, 0)
 use_collision = true
 size = Vector3(3, 0.3, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="LeftWall" type="CSGBox3D" parent="PlaytestCourse/CrouchTunnel"]
 position = Vector3(8, 0.65, -1.75)
 use_collision = true
 size = Vector3(16, 1.3, 0.5)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="RightWall" type="CSGBox3D" parent="PlaytestCourse/CrouchTunnel"]
 position = Vector3(8, 0.65, 1.75)
 use_collision = true
 size = Vector3(16, 1.3, 0.5)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Approach" type="Marker3D" parent="PlaytestCourse/CrouchTunnel"]
 position = Vector3(-3, 0, 0)
@@ -305,19 +287,19 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 0, 4, 6, 4, 16.99, 0)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="LeftWall" type="CSGBox3D" parent="PlaytestCourse/WallRun"]
 position = Vector3(37, 3, -1.5)
 use_collision = true
 size = Vector3(30, 6, 1)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="RightWall" type="CSGBox3D" parent="PlaytestCourse/WallRun"]
 position = Vector3(37, 3, 1.5)
 use_collision = true
 size = Vector3(30, 6, 1)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="SlideStart" type="Marker3D" parent="PlaytestCourse/WallRun"]
 position = Vector3(1, 4, 0)
@@ -339,7 +321,7 @@ use_collision = true
 radius = 4.0
 height = 6.0
 sides = 48
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/WallRun/Tower"]
 rotation_degrees = Vector3(0, -90, 0)
@@ -358,7 +340,7 @@ position = Vector3(0, 0, -30)
 position = Vector3(5, 3, 3.5)
 use_collision = true
 size = Vector3(6, 6, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Corner" type="Marker3D" parent="PlaytestCourse/WallRun/SharpCorner"]
 position = Vector3(8, 0, 1.5)
@@ -380,14 +362,14 @@ position = Vector3(0, 0, -45)
 position = Vector3(3.75, 3, 2)
 use_collision = true
 size = Vector3(5.5, 6, 1)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="NextWall" type="CSGBox3D" parent="PlaytestCourse/WallRun/InsideCorner"]
 position = Vector3(10.651, 3, -1.331)
 rotation_degrees = Vector3(0, 40, 0)
 use_collision = true
 size = Vector3(10, 6, 1)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/WallRun/InsideCorner"]
 rotation_degrees = Vector3(0, -110, 0)
@@ -410,7 +392,7 @@ position = Vector3(0, 0, 30)
 position = Vector3(8, 0.25, 0)
 use_collision = true
 size = Vector3(6, 0.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge05"]
 position = Vector3(5, 0, 0)
@@ -432,7 +414,7 @@ position = Vector3(0, 0, 5)
 position = Vector3(8, 0.5, 0)
 use_collision = true
 size = Vector3(6, 1, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge10"]
 position = Vector3(5, 0, 0)
@@ -454,7 +436,7 @@ position = Vector3(0, 0, 10)
 position = Vector3(8, 0.75, 0)
 use_collision = true
 size = Vector3(6, 1.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge15"]
 position = Vector3(5, 0, 0)
@@ -476,7 +458,7 @@ position = Vector3(0, 0, 15)
 position = Vector3(8, 1, 0)
 use_collision = true
 size = Vector3(6, 2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge20"]
 position = Vector3(5, 0, 0)
@@ -498,7 +480,7 @@ position = Vector3(0, 0, 20)
 position = Vector3(8, 1.25, 0)
 use_collision = true
 size = Vector3(6, 2.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge25"]
 position = Vector3(5, 0, 0)
@@ -520,7 +502,7 @@ position = Vector3(0, 0, 25)
 position = Vector3(8, 1.6, 0)
 use_collision = true
 size = Vector3(6, 3.2, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/HeightLadder/Ledge32"]
 position = Vector3(5, 0, 0)
@@ -551,7 +533,7 @@ position = Vector3(-50, 0, 30)
 position = Vector3(14, 1.25, 3.5)
 use_collision = true
 size = Vector3(30, 2.5, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall25"]
 rotation_degrees = Vector3(0, -110, 0)
@@ -570,7 +552,7 @@ position = Vector3(0, 0, 10)
 position = Vector3(14, 1.5, 3.5)
 use_collision = true
 size = Vector3(30, 3, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall30"]
 rotation_degrees = Vector3(0, -110, 0)
@@ -589,7 +571,7 @@ position = Vector3(0, 0, 20)
 position = Vector3(14, 1.75, 3.5)
 use_collision = true
 size = Vector3(30, 3.5, 4)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/WallRunWalls/Wall35"]
 rotation_degrees = Vector3(0, -110, 0)
@@ -616,13 +598,13 @@ position = Vector3(0, 0, 3)
 use_collision = true
 polygon = PackedVector2Array(0, 0, 0, 3, 4, 3, 16, 0)
 depth = 6.0
-material = SubResource("StandardMaterial3D_ramp")
+material = ExtResource("4_ramp_material")
 
 [node name="Ledge" type="CSGBox3D" parent="PlaytestCourse/Mantle/SpeedLane"]
 position = Vector3(34, 0.8, 0)
 use_collision = true
 size = Vector3(24, 1.6, 6)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Face" type="Marker3D" parent="PlaytestCourse/Mantle/SpeedLane"]
 position = Vector3(22, 0, 0)
@@ -647,13 +629,13 @@ position = Vector3(20, 0, 30)
 position = Vector3(8, 0.75, 0)
 use_collision = true
 size = Vector3(6, 1.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ceiling" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
 position = Vector3(8, 2.95, 0)
 use_collision = true
 size = Vector3(6, 0.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/CrouchOnly"]
 rotation_degrees = Vector3(0, -90, 0)
@@ -672,13 +654,13 @@ position = Vector3(0, 0, 5)
 position = Vector3(8, 0.75, 0)
 use_collision = true
 size = Vector3(6, 1.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Ceiling" type="CSGBox3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
 position = Vector3(8, 2.35, 0)
 use_collision = true
 size = Vector3(6, 0.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/NoRoom"]
 rotation_degrees = Vector3(0, -90, 0)
@@ -697,7 +679,7 @@ position = Vector3(0, 0, 10)
 position = Vector3(5.15, 0.75, 0)
 use_collision = true
 size = Vector3(0.3, 1.5, 3)
-material = SubResource("StandardMaterial3D_block")
+material = ExtResource("5_obstacle_material")
 
 [node name="Start" type="Marker3D" parent="PlaytestCourse/Mantle/RoomChecks/TooThin"]
 rotation_degrees = Vector3(0, -90, 0)

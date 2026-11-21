@@ -1,8 +1,8 @@
 extends GdUnitTestSuite
 ## Every colour the game sets is one of the four palette colours: material albedo in the Course,
-## every Section it knows, and the greybox; their sky and sun; and the HUD and EndScreen's font,
-## outline and background colours, alpha ignored. Lit surfaces show their true palette colour:
-## tonemapping is Linear and the sun lighting the world is white.
+## every Section it knows or that sits in the Sections folder, and the greybox; their sky and sun;
+## and the HUD and EndScreen's font, outline and background colours, alpha ignored. Lit surfaces
+## show their true palette colour: tonemapping is Linear and the sun lighting the world is white.
 
 const CourseScene := preload("res://course/course.tscn")
 const GreyboxScene := preload("res://levels/greybox/greybox.tscn")
@@ -12,11 +12,21 @@ const EndScreenScene := preload("res://course/end_screen.tscn")
 const PALETTE: Array[String] = ["F7D794", "FBA17E", "FF9A00", "EE6200"]
 
 
-## Every Section scene the Course knows: its start Section, then those it picks from.
+## Where Section scenes live; an unregistered Section there is checked too.
+const SECTIONS_DIR := "res://course/sections/"
+
+
+## Every Section scene: the Course's start Section, those it picks from, and any other scene in
+## [constant SECTIONS_DIR], each once.
 func _all_section_scenes() -> Array[PackedScene]:
 	var course: Course = auto_free(CourseScene.instantiate())
 	var scenes: Array[PackedScene] = [course.start_section]
 	scenes.append_array(course.section_list.sections)
+	for file: String in ResourceLoader.list_directory(SECTIONS_DIR):
+		if file.get_extension() == "tscn":
+			var scene := load(SECTIONS_DIR + file) as PackedScene
+			if not scenes.has(scene):
+				scenes.append(scene)
 	return scenes
 
 
