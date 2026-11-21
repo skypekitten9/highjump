@@ -4,24 +4,16 @@
 [ext_resource type="Script" path="res://course/section_layer.gd" id="2_section_layer"]
 [ext_resource type="PackedScene" path="res://course/end_screen.tscn" id="3_end_screen"]
 [ext_resource type="PackedScene" path="res://course/hud.tscn" id="4_hud"]
-
-[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
-
-[sub_resource type="Sky" id="Sky_sky"]
-sky_material = SubResource("ProceduralSkyMaterial_sky")
-
-[sub_resource type="Environment" id="Environment_env"]
-background_mode = 2
-sky = SubResource("Sky_sky")
-tonemap_mode = 2
+[ext_resource type="Environment" path="res://palette/environment.tres" id="5_environment"]
 
 [node name="Course" type="Node3D"]
 script = ExtResource("1_course")
 
 [node name="Environment" type="WorldEnvironment" parent="."]
-environment = SubResource("Environment_env")
+environment = ExtResource("5_environment")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
+sky_mode = 1
 rotation_degrees = Vector3(-55, 30, 0)
 shadow_enabled = true
 

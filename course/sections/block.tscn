@@ -2,12 +2,8 @@
 
 [ext_resource type="Script" path="res://course/section.gd" id="1_section"]
 [ext_resource type="Script" path="res://course/obstacles/block.gd" id="2_block"]
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.5, 0.52, 0.56, 1)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_obstacle"]
-albedo_color = Color(0.3, 0.5, 0.8, 1)
+[ext_resource type="StandardMaterial3D" path="res://palette/floor_material.tres" id="3_floor_material"]
+[ext_resource type="StandardMaterial3D" path="res://palette/obstacle_material.tres" id="4_obstacle_material"]
 
 [node name="Block" type="Node3D"]
 script = ExtResource("1_section")
@@ -17,11 +13,11 @@ length = 24.0
 position = Vector3(0, -0.5, -12)
 use_collision = true
 size = Vector3(8, 1, 24)
-material = SubResource("StandardMaterial3D_floor")
+material = ExtResource("3_floor_material")
 
 [node name="Block" type="CSGBox3D" parent="."]
 position = Vector3(0, 1, -10)
 use_collision = true
 size = Vector3(8, 2, 4)
-material = SubResource("StandardMaterial3D_obstacle")
+material = ExtResource("4_obstacle_material")
 script = ExtResource("2_block")
