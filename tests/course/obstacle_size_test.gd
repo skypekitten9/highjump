@@ -16,10 +16,19 @@ const STANDING_HEIGHT := 1.8
 const RUNNER_RADIUS := 0.35
 ## How finely a Gap is probed along its length, m.
 const GAP_PROBE_STEP := 0.05
-## How finely a Slope is probed along its length, m.
-const SLOPE_PROBE_STEP := 0.1
-## How much the floor must rise over a Slope probe step to count as still part of the Slope, m.
+## The shortest stretch, with floor or without, that a Gap probe counts as there at all: more than
+## one probe step, so a single step's rounding never counts, m.
+const MIN_PROBED_STRETCH := GAP_PROBE_STEP * 1.5
+## How finely the longer probes step along a Section: down a Slope, beyond a Wide gap and through
+## a Chimney, m.
+const COARSE_PROBE_STEP := 0.1
+## How much the floor must rise over a coarse probe step to count as still part of the Slope, m.
 const SLOPE_RISE_MIN := 0.001
+## How far two heights may differ and still count as the same, m.
+const HEIGHT_TOLERANCE := 0.001
+## How far inside an obstacle's bottom, or above the floor, a probe starts, so it doesn't start
+## exactly on a surface, m.
+const SURFACE_OFFSET := 0.01
 ## How far inside the Runner's feet and head a Wall-run's wall is looked for, m.
 const WALL_PROBE_INSET := 0.1
 ## One physics frame at 60 Hz, s.
@@ -65,7 +74,8 @@ func _cast(node: Node3D, from: Vector3, to: Vector3) -> Dictionary:
 ## Height of the top of [param obstacle], probed straight down through its middle, m.
 func _top(obstacle: Node3D) -> float:
 	var middle := obstacle.global_position
-	var hit := _cast(obstacle, middle + Vector3.UP * PROBE_REACH, middle + Vector3.DOWN * 0.01)
+	var below := middle + Vector3.DOWN * SURFACE_OFFSET
+	var hit := _cast(obstacle, middle + Vector3.UP * PROBE_REACH, below)
 	assert_bool(hit.is_empty()).override_failure_message("%s has no top" % obstacle).is_false()
 	return (hit.get("position", Vector3.ZERO) as Vector3).y
 
@@ -73,25 +83,37 @@ func _top(obstacle: Node3D) -> float:
 ## Height of the underside of [param obstacle], probed straight up through its middle from the
 ## floor, m.
 func _bottom(obstacle: Node3D) -> float:
-	var under := Vector3(obstacle.global_position.x, 0.01, obstacle.global_position.z)
+	var under := Vector3(obstacle.global_position.x, SURFACE_OFFSET, obstacle.global_position.z)
 	var hit := _cast(obstacle, under, under + Vector3.UP * PROBE_REACH)
 	var message := "%s has no underside" % obstacle
 	assert_bool(hit.is_empty()).override_failure_message(message).is_false()
 	return (hit.get("position", Vector3.ZERO) as Vector3).y
 
 
+## The first hit of a ray straight down through [param point], from [constant PROBE_REACH] above
+## floor height 0 to as far below it: the floor there, or an empty Dictionary if there is none.
+func _cast_down(node: Node3D, point: Vector3) -> Dictionary:
+	var top := Vector3(point.x, PROBE_REACH, point.z)
+	return _cast(node, top, Vector3(point.x, -PROBE_REACH, point.z))
+
+
 ## Height of the floor at [param point], or NAN if there is none, m.
 func _floor_height(node: Node3D, point: Vector3) -> float:
-	var top := Vector3(point.x, PROBE_REACH, point.z)
-	var hit := _cast(node, top, Vector3(point.x, -PROBE_REACH, point.z))
+	var hit := _cast_down(node, point)
 	if hit.is_empty():
 		return NAN
 	return (hit["position"] as Vector3).y
 
 
+## What the floor at [param point] is part of, or null if there is none.
+func _floor_under(node: Node3D, point: Vector3) -> Object:
+	return _cast_down(node, point).get("collider") as Object
+
+
 ## How far [param gap] runs with no floor, from its marker at its near edge along the Course to
-## the first floor beyond, probed down the middle, m. Never short, and at
-## most a probe step long; a probe step if there is floor straight after the marker.
+## the first floor beyond, probed down the middle in probe steps, m. Never shorter than the Gap,
+## and at most a probe step longer; one probe step if there is floor straight after the marker,
+## and INF if there is none within [constant PROBE_REACH].
 func _gap_length(gap: Node3D) -> float:
 	var ahead := -gap.global_basis.z
 	var along := GAP_PROBE_STEP
@@ -102,10 +124,15 @@ func _gap_length(gap: Node3D) -> float:
 	return INF
 
 
+## The upward speed a jump from the floor launches with, with the default tuning, m/s.
+func _launch_speed() -> float:
+	return sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+
+
 ## How far a jump from the floor carries at [param speed] before landing [param drop] m below
 ## its take-off, with the default tuning, m.
 func _jump_distance(speed: float, drop := 0.0) -> float:
-	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+	var launch := _launch_speed()
 	var fall := sqrt(launch * launch + 2.0 * _tuning.gravity * drop)
 	return speed * (launch + fall) / _tuning.gravity
 
@@ -126,37 +153,30 @@ func _gaps_of_size(sections: Array[Section], size: Gap.Size) -> Array[Node3D]:
 	)
 
 
-## What the floor at [param point] is part of, or null if there is none.
-func _floor_under(node: Node3D, point: Vector3) -> Object:
-	var top := Vector3(point.x, PROBE_REACH, point.z)
-	var hit := _cast(node, top, Vector3(point.x, -PROBE_REACH, point.z))
-	return hit.get("collider") as Object
-
-
-## The speed a Slide reaches at [param gap]'s near edge, begun at Run speed, with its Slide
-## boost, at the top of the floor rising back from the edge, and held all the way down, with the
-## default tuning, m/s. Down each probe step the floor's slope adds speed and slide friction
-## takes it away, as they do to a Slide along the ground.
+## The speed a Slide reaches at [param gap]'s near edge, begun at Run speed with the speed a
+## Slide begins with, at the top of the floor rising back from the edge, and held all the way
+## down, with the default tuning, m/s. Down each probe step the floor's slope adds speed and slide
+## friction takes it away, as they do to a Slide along the ground.
 func _slide_speed_down_slope(gap: Node3D) -> float:
 	var behind := gap.global_basis.z
 	var heights: Array[float] = [
-		_floor_height(gap, gap.global_position + behind * SLOPE_PROBE_STEP)
+		_floor_height(gap, gap.global_position + behind * COARSE_PROBE_STEP)
 	]
 	while true:
-		var along := SLOPE_PROBE_STEP * (heights.size() + 1)
+		var along := COARSE_PROBE_STEP * (heights.size() + 1)
 		var height := _floor_height(gap, gap.global_position + behind * along)
 		if not height > heights[heights.size() - 1] + SLOPE_RISE_MIN:
 			break
 		heights.append(height)
 	heights.reverse()
-	var speed := _slide_speed()
+	var speed := _slide_start_speed()
 	for i: int in range(1, heights.size()):
-		var angle := atan2(heights[i - 1] - heights[i], SLOPE_PROBE_STEP)
+		var angle := atan2(heights[i - 1] - heights[i], COARSE_PROBE_STEP)
 		var gain := _tuning.gravity * _tuning.slope_gain * sin(angle) * cos(angle)
 		var friction := _tuning.slide_friction
 		if speed < _tuning.run_speed:
 			friction = _tuning.slow_slide_friction
-		var squared := speed * speed + 2.0 * (gain - friction) * SLOPE_PROBE_STEP
+		var squared := speed * speed + 2.0 * (gain - friction) * COARSE_PROBE_STEP
 		speed = minf(sqrt(maxf(squared, 0.0)), _tuning.top_slide_speed)
 	return speed
 
@@ -177,8 +197,8 @@ func _wall_side(node: Node3D, point: Vector3, side: float) -> float:
 	return 0.0
 
 
-## The speed a Slide begun at Run speed reaches, with its Slide boost, m/s.
-func _slide_speed() -> float:
+## The speed a Slide begun at Run speed begins with, its Slide boost added, m/s.
+func _slide_start_speed() -> float:
 	return minf(_tuning.run_speed + _tuning.slide_boost, _tuning.top_slide_speed)
 
 
@@ -188,7 +208,7 @@ func _slide_speed() -> float:
 ## middle a body radius past the near edge and finding the far face a body radius and the ledge
 ## probe ahead of its middle. 0 if the far edge is beyond Mantle reach of the jump's peak.
 func _jump_to_mantle_distance(speed: float, rise := 0.0) -> float:
-	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+	var launch := _launch_speed()
 	var room := launch * launch + 2.0 * _tuning.gravity * (_tuning.mantle_reach - rise)
 	if room < 0.0:
 		return 0.0
@@ -200,6 +220,12 @@ func _jump_to_mantle_distance(speed: float, rise := 0.0) -> float:
 ## The jump's peak above take-off with the default tuning, m.
 func _jump_height() -> float:
 	return _tuning.jump_height
+
+
+## How high above its take-off a jump from the floor can still Mantle onto a top, with the
+## default tuning: its peak plus the Mantle's reach, m.
+func _mantle_reach_from_jump() -> float:
+	return _jump_height() + _tuning.mantle_reach
 
 
 func _named(obstacle: Node3D) -> String:
@@ -225,7 +251,7 @@ func test_each_block_is_above_jump_height_and_within_mantle_reach_of_it() -> voi
 		var low := "%s is not above jump height" % _named(block)
 		assert_float(top).override_failure_message(low).is_greater(_jump_height())
 		var high := "%s is beyond Mantle reach of jump height" % _named(block)
-		var reach := _jump_height() + _tuning.mantle_reach
+		var reach := _mantle_reach_from_jump()
 		assert_float(top).override_failure_message(high).is_less_equal(reach)
 
 
@@ -237,7 +263,7 @@ func test_each_block_reached_from_a_wall_run_is_beyond_mantle_reach_of_jump_heig
 	assert_int(blocks.size()).is_greater_equal(1)
 	for block: Node3D in blocks:
 		var message := "%s is within Mantle reach of jump height" % _named(block)
-		var reach := _jump_height() + _tuning.mantle_reach
+		var reach := _mantle_reach_from_jump()
 		assert_float(_top(block)).override_failure_message(message).is_greater(reach)
 
 
@@ -256,7 +282,7 @@ func test_no_overhead_bar_can_be_mantled_over_instead() -> void:
 	var bars := _obstacles(await _lay_all(), OverheadBar)
 	for bar: Node3D in bars:
 		var message := "%s is within Mantle reach of jump height" % _named(bar)
-		var reach := _jump_height() + _tuning.mantle_reach
+		var reach := _mantle_reach_from_jump()
 		assert_float(_top(bar)).override_failure_message(message).is_greater(reach)
 
 
@@ -268,7 +294,7 @@ func test_each_gap_has_floor_up_to_both_edges_landing_no_higher_than_it_takes_of
 	for gap: Node3D in gaps:
 		var length := _gap_length(gap)
 		var open := "%s has floor at its marker" % _named(gap)
-		assert_float(length).override_failure_message(open).is_greater(GAP_PROBE_STEP * 1.5)
+		assert_float(length).override_failure_message(open).is_greater(MIN_PROBED_STRETCH)
 		var take_off := gap.global_position.y
 		var before := gap.global_position + gap.global_basis.z * GAP_PROBE_STEP
 		# A Slope running down to the edge rises at most a probe step over a probe step.
@@ -279,7 +305,8 @@ func test_each_gap_has_floor_up_to_both_edges_landing_no_higher_than_it_takes_of
 		)
 		var far := _floor_height(gap, gap.global_position - gap.global_basis.z * length)
 		var higher := "%s lands higher than it takes off" % _named(gap)
-		assert_float(far).override_failure_message(higher).is_less_equal(take_off + 0.001)
+		var highest := take_off + HEIGHT_TOLERANCE
+		assert_float(far).override_failure_message(higher).is_less_equal(highest)
 
 
 func test_each_short_gap_is_within_a_jump_at_run_speed() -> void:
@@ -289,17 +316,19 @@ func test_each_short_gap_is_within_a_jump_at_run_speed() -> void:
 		assert_float(_gap_length(gap)).override_failure_message(message).is_less_equal(reach)
 
 
-func test_each_long_gap_is_beyond_a_jump_at_run_speed_but_within_one_at_slide_speed() -> void:
+## Both jumps land beyond the Gap without a Mantle: a jump at Run speed that ends in a Mantle onto
+## the far edge may still reach across a Long gap.
+func test_each_long_gap_is_beyond_a_landed_jump_at_run_speed_but_within_a_slide_start_one() -> void:
 	var longs := _gaps_of_size(await _lay_all(), Gap.Size.LONG)
 	assert_int(longs.size()).is_greater_equal(1)
 	for gap: Node3D in longs:
 		var length := _gap_length(gap)
 		var drop := -_rise_beyond(gap)
-		var short := "%s is within a jump at Run speed" % _named(gap)
+		var short := "%s is within a jump at Run speed, landing without a Mantle" % _named(gap)
 		var run_reach := _jump_distance(_tuning.run_speed, drop)
 		assert_float(length).override_failure_message(short).is_greater(run_reach)
-		var far := "%s is beyond a jump at the speed a Slide reaches" % _named(gap)
-		var slide_reach := _jump_distance(_slide_speed(), drop)
+		var far := "%s is beyond a jump at the speed a Slide begins with" % _named(gap)
+		var slide_reach := _jump_distance(_slide_start_speed(), drop)
 		assert_float(length).override_failure_message(far).is_less_equal(slide_reach)
 
 
@@ -318,7 +347,7 @@ func test_each_wide_gap_has_a_slope_running_right_to_its_near_edge_at_floor_heig
 		var edge := "%s is not at floor height 0" % _named(gap)
 		assert_float(gap.global_position.y).override_failure_message(edge).is_equal_approx(
 			0.0,
-			0.001,
+			HEIGHT_TOLERANCE,
 		)
 		var before := gap.global_position + gap.global_basis.z * GAP_PROBE_STEP
 		var slope := "%s has no Slope running down to its near edge" % _named(gap)
@@ -331,7 +360,7 @@ func test_each_wide_gap_is_beyond_a_jump_at_the_speed_a_slide_begins_with() -> v
 	assert_int(wides.size()).is_greater_equal(1)
 	for gap: Node3D in wides:
 		var message := "%s is within a jump at the speed a Slide begins with" % _named(gap)
-		var reach := _landed_jump_distance(_slide_speed())
+		var reach := _landed_jump_distance(_slide_start_speed())
 		assert_float(_gap_length(gap)).override_failure_message(message).is_greater(reach)
 
 
@@ -356,7 +385,7 @@ func test_the_floor_beyond_each_wide_gap_reaches_a_jump_at_top_slide_speed() -> 
 			var message := "%s has no floor beyond it %.1f m along" % [_named(gap), along]
 			var height := _floor_height(gap, gap.global_position + ahead * along)
 			assert_bool(is_nan(height)).override_failure_message(message).is_false()
-			along += SLOPE_PROBE_STEP
+			along += COARSE_PROBE_STEP
 
 
 func test_each_wall_run_gap_is_beyond_a_jump_at_run_speed_even_one_ending_in_a_mantle() -> void:
@@ -388,9 +417,11 @@ func test_each_wall_jump_gap_has_four_walls_on_alternating_sides_overlapping_alo
 		assert_int(walls.size()).override_failure_message(count).is_equal(WALL_JUMP_GAP_WALLS)
 		for i: int in range(1, walls.size()):
 			var same := "%s has walls %d and %d on the same side" % [_named(gap), i, i + 1]
-			assert_float(walls[i].x).override_failure_message(same).is_not_equal(walls[i - 1].x)
+			assert_float(walls[i].side).override_failure_message(same).is_not_equal(
+				walls[i - 1].side,
+			)
 			var apart := "%s has wall %d start after wall %d ends" % [_named(gap), i + 1, i]
-			assert_float(walls[i].y).override_failure_message(apart).is_less(walls[i - 1].z)
+			assert_float(walls[i].start).override_failure_message(apart).is_less(walls[i - 1].end)
 
 
 func test_no_wall_of_a_wall_jump_gap_is_long_enough_to_cross_it_on_one_wall_run() -> void:
@@ -403,38 +434,39 @@ func test_no_wall_of_a_wall_jump_gap_is_long_enough_to_cross_it_on_one_wall_run(
 				_named(gap),
 				i + 1,
 			]
-			var reach := walls[i].z - walls[i].y + jump
+			var reach := walls[i].end - walls[i].start + jump
 			assert_float(reach).override_failure_message(message).is_less(length)
 
 
-func test_each_chimney_has_floor_into_it_then_a_gap_under_it_up_to_its_platform() -> void:
+func test_each_chimney_has_floor_into_it_then_a_gap_under_it_up_to_its_ledge() -> void:
 	var chimneys := _obstacles(await _lay_all(), Chimney)
 	assert_int(chimneys.size()).is_greater_equal(1)
 	for chimney: Node3D in chimneys:
 		var shape := _chimney_shape(chimney)
 		var no_floor := "%s has no floor running into it" % _named(chimney)
-		assert_float(shape.x).override_failure_message(no_floor).is_greater(GAP_PROBE_STEP * 1.5)
-		var no_gap := "%s has no Gap under it beyond its floor" % _named(chimney)
-		assert_float(shape.y - shape.x).override_failure_message(no_gap).is_greater(
-			GAP_PROBE_STEP * 1.5,
+		assert_float(shape.floor_end).override_failure_message(no_floor).is_greater(
+			MIN_PROBED_STRETCH,
 		)
-		var no_platform := "%s has no platform at its end" % _named(chimney)
-		assert_bool(is_finite(shape.y)).override_failure_message(no_platform).is_true()
+		var no_gap := "%s has no Gap under it beyond its floor" % _named(chimney)
+		var gap := shape.ledge_start - shape.floor_end
+		assert_float(gap).override_failure_message(no_gap).is_greater(MIN_PROBED_STRETCH)
+		var no_ledge := "%s has no ledge at its end" % _named(chimney)
+		assert_bool(is_finite(shape.ledge_start)).override_failure_message(no_ledge).is_true()
 
 
-func test_each_chimney_ends_at_a_platform_beyond_mantle_reach_of_jump_height() -> void:
+func test_each_chimney_ends_at_a_ledge_beyond_mantle_reach_of_jump_height() -> void:
 	var chimneys := _obstacles(await _lay_all(), Chimney)
 	assert_int(chimneys.size()).is_greater_equal(1)
 	for chimney: Node3D in chimneys:
-		var message := "%s ends at a platform within Mantle reach of jump height" % _named(chimney)
-		var reach := _jump_height() + _tuning.mantle_reach
-		assert_float(_chimney_shape(chimney).z).override_failure_message(message).is_greater(reach)
+		var message := "%s ends at a ledge within Mantle reach of jump height" % _named(chimney)
+		var height := _chimney_shape(chimney).ledge_height
+		assert_float(height).override_failure_message(message).is_greater(_mantle_reach_from_jump())
 
 
 func test_each_chimney_is_narrow_enough_that_a_wall_jump_reaches_the_far_wall_rising() -> void:
 	var chimneys := _obstacles(await _lay_all(), Chimney)
 	assert_int(chimneys.size()).is_greater_equal(1)
-	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+	var launch := _launch_speed()
 	for chimney: Node3D in chimneys:
 		var width := _chimney_width(chimney)
 		var crossing := (width - 2.0 * RUNNER_RADIUS) / _tuning.wall_jump_push
@@ -446,39 +478,69 @@ func test_each_chimney_is_narrow_enough_that_a_wall_jump_reaches_the_far_wall_ri
 		assert_float(rising).override_failure_message(message).is_greater(0.0)
 
 
-## The shape of [param chimney] down its middle from its marker, m: how far its floor runs into
-## it, where the floor resumes at its platform (INF if it never does), and how high the platform
-## is above the marker.
-func _chimney_shape(chimney: Node3D) -> Vector3:
+## The shape of a Chimney down its middle from its marker, m.
+class ChimneyShape:
+	## How far the Chimney's floor runs into it.
+	var floor_end: float
+	## Where the floor resumes at the Chimney's ledge, INF if it never does.
+	var ledge_start: float
+	## How high the ledge's top is above the marker, NAN if there is no ledge.
+	var ledge_height: float
+
+
+	func _init(floor_ends: float, ledge_starts := INF, ledge_top := NAN) -> void:
+		floor_end = floor_ends
+		ledge_start = ledge_starts
+		ledge_height = ledge_top
+
+
+## A wall alongside a Gap, m along the Gap from its marker.
+class Wall:
+	## The side the wall is on: -1 left, 1 right.
+	var side: float
+	## Where the wall starts along the Gap.
+	var start: float
+	## Where the wall ends along the Gap.
+	var end: float
+
+
+	func _init(on: float, from_along: float, to_along: float) -> void:
+		side = on
+		start = from_along
+		end = to_along
+
+
+## The shape of [param chimney] down its middle from its marker.
+func _chimney_shape(chimney: Node3D) -> ChimneyShape:
 	var ahead := -chimney.global_basis.z
 	var along := 0.0
 	while not is_nan(_floor_height(chimney, chimney.global_position + ahead * along)):
 		along += GAP_PROBE_STEP
 		if along >= PROBE_REACH:
-			return Vector3(along, INF, NAN)
+			return ChimneyShape.new(along)
 	var floor_end := along
 	while along < PROBE_REACH:
 		var height := _floor_height(chimney, chimney.global_position + ahead * along)
 		if not is_nan(height):
-			return Vector3(floor_end, along, height - chimney.global_position.y)
+			return ChimneyShape.new(floor_end, along, height - chimney.global_position.y)
 		along += GAP_PROBE_STEP
-	return Vector3(floor_end, INF, NAN)
+	return ChimneyShape.new(floor_end)
 
 
 ## The widest [param chimney] gets between its two walls, probed across its middle from just past
-## its marker to its platform, from the Runner's middle height up to the platform's top, m. INF
-## where a wall is missing on either side.
+## its marker to its ledge, from the Runner's middle height up to the ledge's top, m. INF where a
+## wall is missing on either side.
 func _chimney_width(chimney: Node3D) -> float:
 	var shape := _chimney_shape(chimney)
-	if not is_finite(shape.y):
+	if not is_finite(shape.ledge_start):
 		return INF
 	var ahead := -chimney.global_basis.z
 	var across := chimney.global_basis.x
 	var widest := 0.0
-	var along := SLOPE_PROBE_STEP
-	while along < shape.y:
+	var along := COARSE_PROBE_STEP
+	while along < shape.ledge_start:
 		var height := STANDING_HEIGHT / 2.0
-		while height <= shape.z:
+		while height <= shape.ledge_height:
 			var middle := chimney.global_position + ahead * along + Vector3.UP * height
 			var width := 0.0
 			for look: float in [-1.0, 1.0]:
@@ -488,15 +550,14 @@ func _chimney_width(chimney: Node3D) -> float:
 				width += middle.distance_to(hit["position"] as Vector3)
 			widest = maxf(widest, width)
 			height += STANDING_HEIGHT / 2.0
-		along += SLOPE_PROBE_STEP
+		along += COARSE_PROBE_STEP
 	return widest
 
 
 ## The walls alongside [param gap], probed at the height of the Runner's middle down the middle of
-## the Gap, in order along it: for each, the side it is on (-1 left, 1 right), and where along
-## the Gap it starts and ends, m.
-func _walls_along(gap: Node3D) -> Array[Vector3]:
-	var walls: Array[Vector3] = []
+## the Gap, in order along it.
+func _walls_along(gap: Node3D) -> Array[Wall]:
+	var walls: Array[Wall] = []
 	var ahead := -gap.global_basis.z
 	var length := _gap_length(gap)
 	for side: float in [-1.0, 1.0]:
@@ -508,14 +569,14 @@ func _walls_along(gap: Node3D) -> Array[Vector3]:
 			if found and is_nan(start):
 				start = along
 			elif not found and not is_nan(start):
-				walls.append(Vector3(side, start, along))
+				walls.append(Wall.new(side, start, along))
 				start = NAN
 			along += GAP_PROBE_STEP
 		if not is_nan(start):
-			walls.append(Vector3(side, start, length))
+			walls.append(Wall.new(side, start, length))
 	walls.sort_custom(
-		func(a: Vector3, b: Vector3) -> bool:
-			return a.y < b.y,
+		func(a: Wall, b: Wall) -> bool:
+			return a.start < b.start,
 	)
 	return walls
 
@@ -530,7 +591,7 @@ func _wall_run_across(gap: Node3D) -> String:
 	var ahead := -gap.global_basis.z
 	var wall_gravity := _tuning.gravity * _tuning.wall_run_gravity_scale
 	var speed := _tuning.wall_run_entry_speed
-	var rise := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+	var rise := _launch_speed()
 	var along := 0.0
 	var feet := 0.0
 	var side := 0.0
