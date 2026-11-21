@@ -63,7 +63,7 @@ const CHIMNEY_SLOPE_WIDE_GAP := "res://course/sections/chimney_slope_wide_gap.ts
 const WALL_JUMP_GAP_TURN_IN := -0.6
 const WALL_JUMP_GAP_TAKE_OFF := -0.1
 ## The turns toward each next wall across the Wall-jump gap, m from its near edge.
-const WALL_JUMP_GAP_TURNS: Array[float] = [6.0, 13.0, 20.0]
+const WALL_JUMP_GAP_TURNS: Array[float] = [5.5, 13.0, 20.5]
 ## Where the turn toward the last wall of the Wall-jump gap is let go, m from its near edge: once
 ## the Runner is over the floor beyond, which the last wall runs on beside.
 const WALL_JUMP_GAP_LET_GO := 30.0
@@ -75,7 +75,7 @@ const LONG_GAP_WALL_JUMP_GAP_EDGE := 24.0
 const WALL_JUMP_GAP_FAST_ENTRY := 11.0
 ## The turns toward each next wall across the Wall-jump gap for a fast Runner, m from its near
 ## edge: it reaches each wall further along.
-const WALL_JUMP_GAP_FAST_TURNS: Array[float] = [6.0, 14.0, 22.0]
+const WALL_JUMP_GAP_FAST_TURNS: Array[float] = [6.0, 13.5, 21.0]
 
 ## Where the moves up the Chimney fall, m along the Chimney Section: the turn toward its wall on
 ## the left, early enough that the Runner has always finished turning, and the jump onto it.
