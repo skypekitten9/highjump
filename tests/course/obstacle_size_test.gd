@@ -199,7 +199,7 @@ func test_each_gap_has_floor_at_0_right_up_to_both_of_its_edges() -> void:
 
 func test_each_short_gap_is_within_a_jump_at_run_speed() -> void:
 	for gap: Node3D in _obstacles(await _lay_all(), Gap):
-		if (gap as Gap).long:
+		if (gap as Gap).size != Gap.Size.SHORT:
 			continue
 		var message := "%s is beyond a jump at Run speed" % _named(gap)
 		var reach := _jump_distance(_tuning.run_speed)
@@ -209,7 +209,7 @@ func test_each_short_gap_is_within_a_jump_at_run_speed() -> void:
 func test_each_long_gap_is_beyond_a_jump_at_run_speed_but_within_one_at_slide_speed() -> void:
 	var longs: Array[Node3D] = []
 	for gap: Node3D in _obstacles(await _lay_all(), Gap):
-		if (gap as Gap).long:
+		if (gap as Gap).size == Gap.Size.LONG:
 			longs.append(gap)
 	assert_int(longs.size()).is_greater_equal(1)
 	for gap: Node3D in longs:

@@ -4,5 +4,14 @@ extends Marker3D
 ## near edge of the Gap, in the middle across, at floor height 0. The Gap runs along -Z to the
 ## floor beyond; the floor itself makes the Gap, not this marker.
 
-## A long Gap needs the speed a Slide reaches to jump across; a short one only Run speed.
-@export var long := false
+## How far a Gap reaches, and so the speed the Runner needs to jump across it.
+enum Size {
+	## Within a jump at Run speed.
+	SHORT,
+	## Beyond a jump at Run speed, but within one at the speed a Slide reaches.
+	LONG,
+}
+
+## How far the Gap reaches: a Short gap needs only Run speed to jump across, a Long gap the speed
+## a Slide reaches.
+@export var size := Size.SHORT
