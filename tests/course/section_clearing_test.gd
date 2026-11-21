@@ -172,3 +172,72 @@ func test_mantling_slide_jumping_then_wall_running_clears_the_hardest_section() 
 		Step.new(55.0, &"move_right", false),
 	]
 	assert_bool(await _attempt(path, steps)).is_true()
+
+
+func test_holding_forward_alone_trips_on_the_hurdle_before_the_short_gap() -> void:
+	var path := "res://course/sections/hurdle_short_gap_overhead_bar.tscn"
+	assert_bool(await _attempt(path, [])).is_false()
+
+
+func test_jumping_the_hurdle_and_the_short_gap_alone_does_not_get_under_the_bar() -> void:
+	var path := "res://course/sections/hurdle_short_gap_overhead_bar.tscn"
+	var steps: Array[Step] = [Step.new(5.5, &"jump"), Step.new(13.9, &"jump")]
+	assert_bool(await _attempt(path, steps)).is_false()
+
+
+func test_jumping_the_hurdle_and_the_short_gap_then_sliding_under_the_bar_clears_them() -> void:
+	var path := "res://course/sections/hurdle_short_gap_overhead_bar.tscn"
+	var steps: Array[Step] = [
+		Step.new(5.5, &"jump"),
+		Step.new(13.9, &"jump"),
+		Step.new(21.0, &"crouch"),
+		Step.new(26.5, &"crouch", false),
+	]
+	assert_bool(await _attempt(path, steps)).is_true()
+
+
+func test_holding_forward_alone_falls_into_the_long_gap_before_the_overhead_bar() -> void:
+	var path := "res://course/sections/long_gap_overhead_bar.tscn"
+	assert_bool(await _attempt(path, [])).is_false()
+
+
+func test_slide_jumping_the_long_gap_and_landing_standing_does_not_get_under_the_bar() -> void:
+	var path := "res://course/sections/long_gap_overhead_bar.tscn"
+	var steps: Array[Step] = [
+		Step.new(7.0, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(13.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(path, steps)).is_false()
+
+
+func test_slide_jumping_the_long_gap_and_slide_hopping_under_the_bar_clears_them() -> void:
+	var path := "res://course/sections/long_gap_overhead_bar.tscn"
+	var steps: Array[Step] = [
+		Step.new(7.0, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(25.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(path, steps)).is_true()
+
+
+func test_holding_forward_alone_does_not_get_onto_the_block_before_the_wall_run_gap() -> void:
+	var path := "res://course/sections/block_wall_run_gap.tscn"
+	assert_bool(await _attempt(path, [])).is_false()
+
+
+func test_mantling_then_jumping_off_the_block_without_wall_running_falls_short() -> void:
+	var path := "res://course/sections/block_wall_run_gap.tscn"
+	var steps: Array[Step] = [Step.new(6.5, &"jump"), Step.new(13.5, &"jump")]
+	assert_bool(await _attempt(path, steps)).is_false()
+
+
+func test_mantling_then_wall_running_off_the_block_clears_the_wall_run_gap() -> void:
+	var path := "res://course/sections/block_wall_run_gap.tscn"
+	var steps: Array[Step] = [
+		Step.new(6.5, &"jump"),
+		Step.new(9.5, &"move_left"),
+		Step.new(13.5, &"jump"),
+		Step.new(24.0, &"move_left", false),
+	]
+	assert_bool(await _attempt(path, steps)).is_true()
