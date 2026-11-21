@@ -5,6 +5,7 @@
 [ext_resource type="PackedScene" path="res://course/end_screen.tscn" id="3_end_screen"]
 [ext_resource type="PackedScene" path="res://course/hud.tscn" id="4_hud"]
 [ext_resource type="Environment" path="res://palette/environment.tres" id="5_environment"]
+[ext_resource type="AudioStream" uid="uid://d2x578v86cxgn" path="res://music/retro.ogg" id="6_music"]
 
 [node name="Course" type="Node3D"]
 script = ExtResource("1_course")
@@ -23,3 +24,8 @@ script = ExtResource("2_section_layer")
 [node name="Hud" parent="." instance=ExtResource("4_hud")]
 
 [node name="EndScreen" parent="." instance=ExtResource("3_end_screen")]
+
+[node name="Music" type="AudioStreamPlayer" parent="."]
+stream = ExtResource("6_music")
+autoplay = true
+bus = &"Music"
