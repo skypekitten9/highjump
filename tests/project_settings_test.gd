@@ -24,3 +24,8 @@ func test_crouch_is_bound_to_left_ctrl_and_c() -> void:
 	assert_array(keys).contains_exactly_in_any_order(
 		[[KEY_CTRL, KEY_LOCATION_LEFT], [KEY_C, KEY_LOCATION_UNSPECIFIED]]
 	)
+
+
+func test_the_course_is_the_main_scene() -> void:
+	var main_scene: String = ProjectSettings.get_setting("application/run/main_scene")
+	assert_str(ResourceUID.ensure_path(main_scene)).is_equal("res://course/course.tscn")

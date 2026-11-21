@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SectionList" format=3]
+
+[ext_resource type="Script" path="res://course/section_list.gd" id="1_list"]
+[ext_resource type="PackedScene" path="res://course/sections/hurdle.tscn" id="2_hurdle"]
+[ext_resource type="PackedScene" path="res://course/sections/block.tscn" id="3_block"]
+[ext_resource type="PackedScene" path="res://course/sections/overhead_bar.tscn" id="4_overhead_bar"]
+[ext_resource type="PackedScene" path="res://course/sections/short_gap.tscn" id="5_short_gap"]
+[ext_resource type="PackedScene" path="res://course/sections/wall_run_gap.tscn" id="6_wall_run_gap"]
+[ext_resource type="PackedScene" path="res://course/sections/hurdle_then_overhead_bar.tscn" id="7_hurdle_then_overhead_bar"]
+[ext_resource type="PackedScene" path="res://course/sections/block_long_gap_wall_run_gap.tscn" id="8_block_long_gap_wall_run_gap"]
+
+[resource]
+script = ExtResource("1_list")
+sections = Array[PackedScene]([ExtResource("2_hurdle"), ExtResource("3_block"), ExtResource("4_overhead_bar"), ExtResource("5_short_gap"), ExtResource("6_wall_run_gap"), ExtResource("7_hurdle_then_overhead_bar"), ExtResource("8_block_long_gap_wall_run_gap")])

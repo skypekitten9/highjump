@@ -19,9 +19,12 @@ func after_test() -> void:
 	Input.action_release("jump")
 
 
-## A fresh greybox level, not yet in the tree.
+## A fresh greybox level, not yet in the tree, its Runner not holding forward.
 func _greybox() -> Level:
-	return auto_free((load(GREYBOX) as PackedScene).instantiate())
+	var level: Level = auto_free((load(GREYBOX) as PackedScene).instantiate())
+	# Stands still unless the test holds forward.
+	_runner_of(level).holds_forward = false
+	return level
 
 
 ## Runs [param level] with its Runner moved to [param start] (a node path in the level), facing

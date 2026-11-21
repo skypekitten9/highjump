@@ -138,6 +138,11 @@ const MIN_MANTLE_LEAP_GRAVITY_SCALE := 0.1
 	"or_greater",
 	"suffix:rad/px",
 ) var mouse_sensitivity: float = 0.0025
+## Look limit: the farthest the view turns to either side of the Course heading. A hard stop;
+## pitch is not limited by it, degrees. Kept within 0 to 180.
+@export_range(0.0, 180.0, 1.0, "suffix:°") var look_limit: float = 80.0:
+	set(value):
+		look_limit = clampf(value, 0.0, 180.0)
 ## Camera field of view, degrees (vertical).
 @export_range(1.0, 179.0, 1.0, "suffix:°") var fov: float = 90.0
 ## How quickly the camera eases between standing and low eye height, 1/s. Higher is snappier;
