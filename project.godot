@@ -27,6 +27,10 @@ gdscript/warnings/unsafe_call_argument=2
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
+[gui]
+
+theme/custom_font="res://fonts/Silkscreen-Regular.ttf"
+
 [editor_plugins]
 
 enabled=PackedStringArray("res://addons/gdUnit4/plugin.cfg")
