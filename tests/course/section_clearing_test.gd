@@ -74,8 +74,8 @@ const WALL_JUMP_GAP_FAST_ENTRY := 11.0
 const WALL_JUMP_GAP_FAST_TURNS: Array[float] = [1.6, 6.1, 11.1]
 
 ## Where the moves up the Chimney fall, m along the Chimney Section: the turn toward its wall on
-## the left, and the jump onto it.
-const CHIMNEY_TURN_IN := 8.2
+## the left, early enough that the Runner has always finished turning, and the jump onto it.
+const CHIMNEY_TURN_IN := 7.5
 const CHIMNEY_TAKE_OFF := 9.3
 ## The turns toward each next wall up the Chimney, m along the Chimney Section.
 const CHIMNEY_TURNS: Array[float] = [10.2, 12.5, 15.5, 19.7]
