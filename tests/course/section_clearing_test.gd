@@ -21,6 +21,7 @@ const ACTIONS: Array[StringName] = [&"jump", &"crouch", &"move_left", &"move_rig
 const WALL_JUMP_GAP := "res://course/sections/wall_jump_gap.tscn"
 const LONG_GAP_WALL_JUMP_GAP := "res://course/sections/long_gap_wall_jump_gap.tscn"
 const WALL_RUN_TO_MANTLE := "res://course/sections/wall_run_to_mantle.tscn"
+const SLIDE_HOP_CHAIN := "res://course/sections/slide_hop_chain.tscn"
 
 
 func after_test() -> void:
@@ -315,3 +316,40 @@ func test_mantling_out_of_a_wall_run_onto_the_tall_block_clears_it() -> void:
 		Step.new(19.0, &"move_left", false),
 	]
 	assert_bool(await _attempt(WALL_RUN_TO_MANTLE, steps)).is_true()
+
+
+func test_holding_forward_alone_does_not_get_onto_the_block_before_the_slopes() -> void:
+	assert_bool(await _attempt(SLIDE_HOP_CHAIN, [])).is_false()
+
+
+func test_sliding_down_both_slopes_with_a_slide_hop_between_them_clears_the_wide_gap() -> void:
+	var steps: Array[Step] = [
+		Step.new(6.5, &"jump"),
+		Step.new(9.0, &"crouch"),
+		Step.new(12.1, &"jump"),
+		Step.new(23.85, &"jump"),
+		Step.new(27.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(SLIDE_HOP_CHAIN, steps)).is_true()
+
+
+func test_landing_standing_on_the_lower_slope_then_sliding_falls_into_the_wide_gap() -> void:
+	var steps: Array[Step] = [
+		Step.new(6.5, &"jump"),
+		Step.new(9.0, &"crouch"),
+		Step.new(12.1, &"jump"),
+		Step.new(13.25, &"crouch", false),
+		Step.new(22.8, &"crouch"),
+		Step.new(23.85, &"jump"),
+		Step.new(27.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(SLIDE_HOP_CHAIN, steps)).is_false()
+
+
+func test_running_down_the_slopes_instead_of_sliding_falls_into_the_wide_gap() -> void:
+	var steps: Array[Step] = [
+		Step.new(6.5, &"jump"),
+		Step.new(12.1, &"jump"),
+		Step.new(23.85, &"jump"),
+	]
+	assert_bool(await _attempt(SLIDE_HOP_CHAIN, steps)).is_false()

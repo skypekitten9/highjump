@@ -16,6 +16,10 @@ const STANDING_HEIGHT := 1.8
 const RUNNER_RADIUS := 0.35
 ## How finely a Gap is probed along its length, m.
 const GAP_PROBE_STEP := 0.05
+## How finely a Slope is probed along its length, m.
+const SLOPE_PROBE_STEP := 0.1
+## How much the floor must rise over a Slope probe step to count as still part of the Slope, m.
+const SLOPE_RISE_MIN := 0.001
 ## How far inside the Runner's feet and head a Wall-run's wall is looked for, m.
 const WALL_PROBE_INSET := 0.1
 ## One physics frame at 60 Hz, s.
@@ -98,11 +102,63 @@ func _gap_length(gap: Node3D) -> float:
 	return INF
 
 
-## How far a jump from the floor carries at [param speed] before landing back at the same height,
-## with the default tuning, m.
-func _jump_distance(speed: float) -> float:
+## How far a jump from the floor carries at [param speed] before landing [param drop] m below
+## its take-off, with the default tuning, m.
+func _jump_distance(speed: float, drop := 0.0) -> float:
 	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
-	return speed * 2.0 * launch / _tuning.gravity
+	var fall := sqrt(launch * launch + 2.0 * _tuning.gravity * drop)
+	return speed * (launch + fall) / _tuning.gravity
+
+
+## How wide a Gap a jump from the floor at [param speed] lands across, at the same height, with
+## the default tuning, m: the jump carries the body's middle [method _jump_distance], and the
+## body adds its own size, leaving the floor with its middle a body radius past the near edge
+## and landing with it a body radius short of the far one.
+func _landed_jump_distance(speed: float) -> float:
+	return _jump_distance(speed) + 2.0 * RUNNER_RADIUS
+
+
+## The Gaps of [param size] in [param sections].
+func _gaps_of_size(sections: Array[Section], size: Gap.Size) -> Array[Node3D]:
+	return _obstacles(sections, Gap).filter(
+		func(gap: Node3D) -> bool:
+			return (gap as Gap).size == size,
+	)
+
+
+## What the floor at [param point] is part of, or null if there is none.
+func _floor_under(node: Node3D, point: Vector3) -> Object:
+	var top := Vector3(point.x, PROBE_REACH, point.z)
+	var hit := _cast(node, top, Vector3(point.x, -PROBE_REACH, point.z))
+	return hit.get("collider") as Object
+
+
+## The speed a Slide reaches at [param gap]'s near edge, begun at Run speed, with its Slide
+## boost, at the top of the floor rising back from the edge, and held all the way down, with the
+## default tuning, m/s. Down each probe step the floor's slope adds speed and slide friction
+## takes it away, as they do to a Slide along the ground.
+func _slide_speed_down_slope(gap: Node3D) -> float:
+	var behind := gap.global_basis.z
+	var heights: Array[float] = [
+		_floor_height(gap, gap.global_position + behind * SLOPE_PROBE_STEP)
+	]
+	while true:
+		var along := SLOPE_PROBE_STEP * (heights.size() + 1)
+		var height := _floor_height(gap, gap.global_position + behind * along)
+		if not height > heights[heights.size() - 1] + SLOPE_RISE_MIN:
+			break
+		heights.append(height)
+	heights.reverse()
+	var speed := _slide_speed()
+	for i: int in range(1, heights.size()):
+		var angle := atan2(heights[i - 1] - heights[i], SLOPE_PROBE_STEP)
+		var gain := _tuning.gravity * _tuning.slope_gain * sin(angle) * cos(angle)
+		var friction := _tuning.slide_friction
+		if speed < _tuning.run_speed:
+			friction = _tuning.slow_slide_friction
+		var squared := speed * speed + 2.0 * (gain - friction) * SLOPE_PROBE_STEP
+		speed = minf(sqrt(maxf(squared, 0.0)), _tuning.top_slide_speed)
+	return speed
 
 
 ## Which side of [param point] a near-vertical wall is within the Section's half width: -1 to the
@@ -204,7 +260,7 @@ func test_no_overhead_bar_can_be_mantled_over_instead() -> void:
 		assert_float(_top(bar)).override_failure_message(message).is_greater(reach)
 
 
-func test_each_gap_has_floor_at_0_right_up_to_both_of_its_edges() -> void:
+func test_each_gap_has_floor_up_to_both_edges_landing_no_higher_than_it_takes_off() -> void:
 	var sections := await _lay_all()
 	var gaps := _obstacles(sections, Gap)
 	gaps.append_array(_obstacles(sections, WallJumpGap))
@@ -213,36 +269,94 @@ func test_each_gap_has_floor_at_0_right_up_to_both_of_its_edges() -> void:
 		var length := _gap_length(gap)
 		var open := "%s has floor at its marker" % _named(gap)
 		assert_float(length).override_failure_message(open).is_greater(GAP_PROBE_STEP * 1.5)
-		var ahead := -gap.global_basis.z
-		for along: float in [-GAP_PROBE_STEP, length]:
-			var height := _floor_height(gap, gap.global_position + ahead * along)
-			var message := "%s has no floor at 0, %.2f m along it" % [_named(gap), along]
-			assert_float(height).override_failure_message(message).is_equal_approx(0.0, 0.001)
+		var take_off := gap.global_position.y
+		var before := gap.global_position + gap.global_basis.z * GAP_PROBE_STEP
+		# A Slope running down to the edge rises at most a probe step over a probe step.
+		var not_near := "%s has no floor at its marker's height before it" % _named(gap)
+		assert_float(_floor_height(gap, before)).override_failure_message(not_near).is_equal_approx(
+			take_off,
+			GAP_PROBE_STEP,
+		)
+		var far := _floor_height(gap, gap.global_position - gap.global_basis.z * length)
+		var higher := "%s lands higher than it takes off" % _named(gap)
+		assert_float(far).override_failure_message(higher).is_less_equal(take_off + 0.001)
 
 
 func test_each_short_gap_is_within_a_jump_at_run_speed() -> void:
-	for gap: Node3D in _obstacles(await _lay_all(), Gap):
-		if (gap as Gap).size != Gap.Size.SHORT:
-			continue
+	for gap: Node3D in _gaps_of_size(await _lay_all(), Gap.Size.SHORT):
 		var message := "%s is beyond a jump at Run speed" % _named(gap)
 		var reach := _jump_distance(_tuning.run_speed)
 		assert_float(_gap_length(gap)).override_failure_message(message).is_less_equal(reach)
 
 
 func test_each_long_gap_is_beyond_a_jump_at_run_speed_but_within_one_at_slide_speed() -> void:
-	var longs: Array[Node3D] = []
-	for gap: Node3D in _obstacles(await _lay_all(), Gap):
-		if (gap as Gap).size == Gap.Size.LONG:
-			longs.append(gap)
+	var longs := _gaps_of_size(await _lay_all(), Gap.Size.LONG)
 	assert_int(longs.size()).is_greater_equal(1)
 	for gap: Node3D in longs:
 		var length := _gap_length(gap)
+		var drop := -_rise_beyond(gap)
 		var short := "%s is within a jump at Run speed" % _named(gap)
-		var run_reach := _jump_distance(_tuning.run_speed)
+		var run_reach := _jump_distance(_tuning.run_speed, drop)
 		assert_float(length).override_failure_message(short).is_greater(run_reach)
 		var far := "%s is beyond a jump at the speed a Slide reaches" % _named(gap)
-		var slide_reach := _jump_distance(_slide_speed())
+		var slide_reach := _jump_distance(_slide_speed(), drop)
 		assert_float(length).override_failure_message(far).is_less_equal(slide_reach)
+
+
+func test_some_long_gap_takes_off_higher_than_it_lands() -> void:
+	var dropping := _gaps_of_size(await _lay_all(), Gap.Size.LONG).filter(
+		func(gap: Node3D) -> bool:
+			return _rise_beyond(gap) < -GAP_PROBE_STEP,
+	)
+	assert_int(dropping.size()).is_greater_equal(1)
+
+
+func test_each_wide_gap_has_a_slope_running_right_to_its_near_edge_at_floor_height_0() -> void:
+	var wides := _gaps_of_size(await _lay_all(), Gap.Size.WIDE)
+	assert_int(wides.size()).is_greater_equal(1)
+	for gap: Node3D in wides:
+		var edge := "%s is not at floor height 0" % _named(gap)
+		assert_float(gap.global_position.y).override_failure_message(edge).is_equal_approx(
+			0.0,
+			0.001,
+		)
+		var before := gap.global_position + gap.global_basis.z * GAP_PROBE_STEP
+		var slope := "%s has no Slope running down to its near edge" % _named(gap)
+		assert_bool(_floor_under(gap, before) is Slope).override_failure_message(slope).is_true()
+		assert_float(_floor_height(gap, before)).override_failure_message(slope).is_greater(0.0)
+
+
+func test_each_wide_gap_is_beyond_a_jump_at_the_speed_a_slide_begins_with() -> void:
+	var wides := _gaps_of_size(await _lay_all(), Gap.Size.WIDE)
+	assert_int(wides.size()).is_greater_equal(1)
+	for gap: Node3D in wides:
+		var message := "%s is within a jump at the speed a Slide begins with" % _named(gap)
+		var reach := _landed_jump_distance(_slide_speed())
+		assert_float(_gap_length(gap)).override_failure_message(message).is_greater(reach)
+
+
+func test_each_wide_gap_is_within_a_jump_at_the_speed_a_slide_reaches_down_its_slope() -> void:
+	var wides := _gaps_of_size(await _lay_all(), Gap.Size.WIDE)
+	assert_int(wides.size()).is_greater_equal(1)
+	for gap: Node3D in wides:
+		var message := "%s is beyond a jump at the speed a Slide reaches down its Slope" % [
+			_named(gap),
+		]
+		var reach := _landed_jump_distance(_slide_speed_down_slope(gap))
+		assert_float(_gap_length(gap)).override_failure_message(message).is_less(reach)
+
+
+func test_the_floor_beyond_each_wide_gap_reaches_a_jump_at_top_slide_speed() -> void:
+	var wides := _gaps_of_size(await _lay_all(), Gap.Size.WIDE)
+	assert_int(wides.size()).is_greater_equal(1)
+	for gap: Node3D in wides:
+		var ahead := -gap.global_basis.z
+		var along := _gap_length(gap)
+		while along <= _jump_distance(_tuning.top_slide_speed):
+			var message := "%s has no floor beyond it %.1f m along" % [_named(gap), along]
+			var height := _floor_height(gap, gap.global_position + ahead * along)
+			assert_bool(is_nan(height)).override_failure_message(message).is_false()
+			along += SLOPE_PROBE_STEP
 
 
 func test_each_wall_run_gap_is_beyond_a_jump_at_run_speed_even_one_ending_in_a_mantle() -> void:

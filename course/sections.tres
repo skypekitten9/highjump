@@ -14,7 +14,8 @@
 [ext_resource type="PackedScene" path="res://course/sections/wall_jump_gap.tscn" id="12_wall_jump_gap"]
 [ext_resource type="PackedScene" path="res://course/sections/long_gap_wall_jump_gap.tscn" id="13_long_gap_wall_jump_gap"]
 [ext_resource type="PackedScene" path="res://course/sections/wall_run_to_mantle.tscn" id="14_wall_run_to_mantle"]
+[ext_resource type="PackedScene" path="res://course/sections/slide_hop_chain.tscn" id="15_slide_hop_chain"]
 
 [resource]
 script = ExtResource("1_list")
-sections = Array[PackedScene]([ExtResource("2_hurdle"), ExtResource("3_block"), ExtResource("4_overhead_bar"), ExtResource("5_short_gap"), ExtResource("6_wall_run_gap"), ExtResource("7_hurdle_then_overhead_bar"), ExtResource("8_block_long_gap_wall_run_gap"), ExtResource("9_hurdle_short_gap_overhead_bar"), ExtResource("10_long_gap_overhead_bar"), ExtResource("11_block_wall_run_gap"), ExtResource("12_wall_jump_gap"), ExtResource("13_long_gap_wall_jump_gap"), ExtResource("14_wall_run_to_mantle")])
+sections = Array[PackedScene]([ExtResource("2_hurdle"), ExtResource("3_block"), ExtResource("4_overhead_bar"), ExtResource("5_short_gap"), ExtResource("6_wall_run_gap"), ExtResource("7_hurdle_then_overhead_bar"), ExtResource("8_block_long_gap_wall_run_gap"), ExtResource("9_hurdle_short_gap_overhead_bar"), ExtResource("10_long_gap_overhead_bar"), ExtResource("11_block_wall_run_gap"), ExtResource("12_wall_jump_gap"), ExtResource("13_long_gap_wall_jump_gap"), ExtResource("14_wall_run_to_mantle"), ExtResource("15_slide_hop_chain")])
