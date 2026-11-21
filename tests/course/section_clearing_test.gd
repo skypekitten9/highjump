@@ -42,6 +42,9 @@ const BLOCK_LONG_GAP_WALL_RUN_GAP := "res://course/sections/block_long_gap_wall_
 const HURDLE_SHORT_GAP_OVERHEAD_BAR := "res://course/sections/hurdle_short_gap_overhead_bar.tscn"
 ## A Long gap, then an Overhead bar.
 const LONG_GAP_OVERHEAD_BAR := "res://course/sections/long_gap_overhead_bar.tscn"
+## Where a Runner that landed standing beyond the Long gap, before the Overhead bar, crouches to
+## Slide under it, m along: once it has surely landed, with time to spare before the bar.
+const LONG_GAP_OVERHEAD_BAR_LANDED := 21.5
 ## A Block, then a Wall-run gap jumped from its top.
 const BLOCK_WALL_RUN_GAP := "res://course/sections/block_wall_run_gap.tscn"
 ## The Wall-jump gap Section.
@@ -348,7 +351,18 @@ func test_slide_jumping_the_long_gap_and_slide_hopping_under_the_bar_clears_them
 	var steps: Array[Step] = [
 		Step.new(7.0, &"crouch"),
 		Step.new(11.6, &"jump"),
-		Step.new(25.0, &"crouch", false),
+		Step.new(29.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(LONG_GAP_OVERHEAD_BAR, steps)).is_true()
+
+
+func test_landing_standing_beyond_the_long_gap_then_sliding_under_the_bar_clears_them() -> void:
+	var steps: Array[Step] = [
+		Step.new(7.0, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(13.0, &"crouch", false),
+		Step.new(LONG_GAP_OVERHEAD_BAR_LANDED, &"crouch"),
+		Step.new(29.0, &"crouch", false),
 	]
 	assert_bool(await _attempt(LONG_GAP_OVERHEAD_BAR, steps)).is_true()
 
