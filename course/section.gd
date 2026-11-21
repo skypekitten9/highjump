@@ -11,13 +11,14 @@ const WIDTH := 8.0
 const MIN_LENGTH := 1.0
 ## The easiest and hardest a Section can be.
 const MIN_DIFFICULTY := 1
-const MAX_DIFFICULTY := 3
+const MAX_DIFFICULTY := 5
 
 ## How far the Section runs along the Course, m.
 @export_range(1.0, 200.0, 0.5, "or_greater", "suffix:m") var length: float = 20.0:
 	set(value):
 		length = maxf(value, MIN_LENGTH)
-## How hard the Section is, from 1 to 3. Harder Sections unlock further along the Course.
-@export_range(1, 3) var difficulty: int = 1:
+## How hard the Section is, from 1 to 5. Harder Sections begin to appear
+## further along the Course.
+@export_range(1, 5) var difficulty: int = 1:
 	set(value):
 		difficulty = clampi(value, MIN_DIFFICULTY, MAX_DIFFICULTY)

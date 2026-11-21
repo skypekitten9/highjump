@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## Every Section the Course can lay, the start Section among them, is 8 m wide with open edges,
-## starts and ends at floor height 0, and declares its length and a difficulty from 1 to 3.
+## starts and ends at floor height 0, and declares its length and a difficulty from 1 to 5.
 
 const CourseScene := preload("res://course/course.tscn")
 ## Half the width every Section has, m.
@@ -66,20 +66,31 @@ func test_the_course_knows_a_start_section_and_sections_to_pick() -> void:
 	assert_int(_all_section_scenes().size()).is_greater_equal(2)
 
 
-func test_the_course_picks_four_sections_of_difficulty_1_two_of_2_and_one_of_3() -> void:
+func test_the_course_picks_four_each_of_difficulty_1_and_4_three_each_of_2_and_3_one_of_5() -> void:
 	var course: Course = auto_free(CourseScene.instantiate())
-	var counts: Dictionary[int, int] = { 1: 0, 2: 0, 3: 0 }
+	var counts: Dictionary[int, int] = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
 	for scene: PackedScene in course.section_list.sections:
 		var section: Section = auto_free(scene.instantiate())
 		counts[section.difficulty] += 1
-	assert_dict(counts).is_equal({ 1: 4, 2: 2, 3: 1 })
+	assert_dict(counts).is_equal({ 1: 4, 2: 3, 3: 3, 4: 4, 5: 1 })
 
 
-func test_every_section_declares_a_length_and_a_difficulty_from_1_to_3() -> void:
+func test_every_section_declares_a_length_and_a_difficulty_from_1_to_5() -> void:
 	for scene: PackedScene in _all_section_scenes():
 		var section: Section = auto_free(scene.instantiate())
 		assert_float(section.length).is_greater(0.0)
-		assert_int(section.difficulty).is_between(1, 3)
+		assert_int(section.difficulty).is_between(1, 5)
+
+
+func test_a_section_can_be_of_any_difficulty_from_1_to_5_and_no_other() -> void:
+	var section: Section = auto_free(Section.new())
+	for difficulty: int in range(1, 6):
+		section.difficulty = difficulty
+		assert_int(section.difficulty).is_equal(difficulty)
+	section.difficulty = 6
+	assert_int(section.difficulty).is_equal(5)
+	section.difficulty = 0
+	assert_int(section.difficulty).is_equal(1)
 
 
 func test_every_section_starts_and_ends_at_floor_height_0() -> void:
