@@ -90,7 +90,7 @@ func test_the_course_lays_a_section_ahead_as_the_runner_runs() -> void:
 	await scene.simulate_frames(120, 16)
 	assert_float(_along(course, _runner_of(course).global_position)).is_greater(10.0)
 	# On past more than the longest Section, so what was laid at the start can't still be enough.
-	await _move_runner_on(scene, course, 60.0)
+	await _move_runner_on(scene, course, 80.0)
 
 	var runner_along := _along(course, _runner_of(course).global_position)
 	assert_float(_laid_end(course)).is_greater(laid_at_start)

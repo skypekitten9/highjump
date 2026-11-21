@@ -10,7 +10,7 @@
 
 [node name="SlideHopChain" type="Node3D"]
 script = ExtResource("1_section")
-length = 43.0
+length = 44.0
 difficulty = 4
 
 [node name="FloorBefore" type="CSGBox3D" parent="."]
@@ -20,9 +20,9 @@ size = Vector3(8, 1, 8)
 material = ExtResource("5_floor_material")
 
 [node name="Block" type="CSGBox3D" parent="."]
-position = Vector3(0, 1.25, -9)
+position = Vector3(0, 1.35, -9)
 use_collision = true
-size = Vector3(8, 2.5, 2)
+size = Vector3(8, 2.7, 2)
 material = ExtResource("7_obstacle_material")
 script = ExtResource("3_block")
 
@@ -30,13 +30,13 @@ script = ExtResource("3_block")
 position = Vector3(4, 0, -10)
 rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
-polygon = PackedVector2Array(0, 0, 2.25, 0, 2.25, 1.3, 0, 2.5)
+polygon = PackedVector2Array(0, 0, 2.25, 0, 2.25, 1.55, 0, 2.7)
 depth = 8.0
 material = ExtResource("6_ramp_material")
 script = ExtResource("4_slope")
 
 [node name="LongGap" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, -12.25)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.55, -12.25)
 script = ExtResource("2_gap")
 size = 1
 
@@ -44,20 +44,20 @@ size = 1
 position = Vector3(4, 0, -18.75)
 rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
-polygon = PackedVector2Array(0, 0, 5.25, 0, 0, 1.2)
+polygon = PackedVector2Array(0, 0, 5.3, 0, 2, 0.95, 0, 1.45)
 depth = 8.0
 material = ExtResource("6_ramp_material")
 script = ExtResource("4_slope")
 
 [node name="WideGap" type="Marker3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -24)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -24.05)
 script = ExtResource("2_gap")
 size = 2
 
 [node name="FloorAfter" type="CSGPolygon3D" parent="."]
-position = Vector3(4, 0, -32.7)
+position = Vector3(4, 0, -33)
 rotation_degrees = Vector3(0, 90, 0)
 use_collision = true
-polygon = PackedVector2Array(1, -1, 10.3, -1, 10.3, 0, 0, 0)
+polygon = PackedVector2Array(1, -1, 11, -1, 11, 0, 0, 0)
 depth = 8.0
 material = ExtResource("5_floor_material")
