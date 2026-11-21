@@ -4,7 +4,7 @@
 [ext_resource type="Script" path="res://course/obstacles/gap.gd" id="2_gap"]
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.5, 0.52, 0.56, 1)
+albedo_color = Color(0.984314, 0.631373, 0.494118, 1)
 
 [node name="ShortGap" type="Node3D"]
 script = ExtResource("1_section")

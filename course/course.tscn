@@ -6,6 +6,10 @@
 [ext_resource type="PackedScene" path="res://course/hud.tscn" id="4_hud"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.968627, 0.843137, 0.580392, 1)
+sky_horizon_color = Color(0.968627, 0.843137, 0.580392, 1)
+ground_bottom_color = Color(1, 0.603922, 0, 1)
+ground_horizon_color = Color(1, 0.603922, 0, 1)
 
 [sub_resource type="Sky" id="Sky_sky"]
 sky_material = SubResource("ProceduralSkyMaterial_sky")
@@ -13,7 +17,6 @@ sky_material = SubResource("ProceduralSkyMaterial_sky")
 [sub_resource type="Environment" id="Environment_env"]
 background_mode = 2
 sky = SubResource("Sky_sky")
-tonemap_mode = 2
 
 [node name="Course" type="Node3D"]
 script = ExtResource("1_course")
@@ -22,6 +25,7 @@ script = ExtResource("1_course")
 environment = SubResource("Environment_env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
+sky_mode = 1
 rotation_degrees = Vector3(-55, 30, 0)
 shadow_enabled = true
 

@@ -13,7 +13,7 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
-color = Color(0, 0, 0, 0.5)
+color = Color(0.933333, 0.384314, 0, 0.5)
 
 [node name="Centre" type="CenterContainer" parent="."]
 anchors_preset = 15
@@ -29,18 +29,21 @@ mouse_filter = 2
 
 [node name="Title" type="Label" parent="Centre/Lines"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.968627, 0.843137, 0.580392, 1)
 theme_override_font_sizes/font_size = 48
 text = "You fell"
 horizontal_alignment = 1
 
 [node name="Distance" type="Label" parent="Centre/Lines"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.968627, 0.843137, 0.580392, 1)
 theme_override_font_sizes/font_size = 32
 text = "Distance: 0 m"
 horizontal_alignment = 1
 
 [node name="Best" type="Label" parent="Centre/Lines"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.968627, 0.843137, 0.580392, 1)
 theme_override_font_sizes/font_size = 32
 text = "Best: 0 m"
 horizontal_alignment = 1
@@ -48,13 +51,14 @@ horizontal_alignment = 1
 [node name="NewBest" type="Label" parent="Centre/Lines"]
 visible = false
 layout_mode = 2
-theme_override_colors/font_color = Color(1, 0.84, 0.2, 1)
+theme_override_colors/font_color = Color(1, 0.603922, 0, 1)
 theme_override_font_sizes/font_size = 32
 text = "New best!"
 horizontal_alignment = 1
 
 [node name="Hint" type="Label" parent="Centre/Lines"]
 layout_mode = 2
+theme_override_colors/font_color = Color(0.968627, 0.843137, 0.580392, 1)
 theme_override_font_sizes/font_size = 24
 text = "Jump or click to retry"
 horizontal_alignment = 1

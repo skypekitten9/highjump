@@ -4,6 +4,10 @@
 [ext_resource type="Script" path="res://levels/level.gd" id="2_level"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_sky"]
+sky_top_color = Color(0.968627, 0.843137, 0.580392, 1)
+sky_horizon_color = Color(0.968627, 0.843137, 0.580392, 1)
+ground_bottom_color = Color(1, 0.603922, 0, 1)
+ground_horizon_color = Color(1, 0.603922, 0, 1)
 
 [sub_resource type="Sky" id="Sky_sky"]
 sky_material = SubResource("ProceduralSkyMaterial_sky")
@@ -11,16 +15,15 @@ sky_material = SubResource("ProceduralSkyMaterial_sky")
 [sub_resource type="Environment" id="Environment_env"]
 background_mode = 2
 sky = SubResource("Sky_sky")
-tonemap_mode = 2
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_floor"]
-albedo_color = Color(0.45, 0.45, 0.47, 1)
+albedo_color = Color(0.984314, 0.631373, 0.494118, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ramp"]
-albedo_color = Color(0.85, 0.55, 0.3, 1)
+albedo_color = Color(1, 0.603922, 0, 1)
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_block"]
-albedo_color = Color(0.7, 0.72, 0.75, 1)
+albedo_color = Color(0.933333, 0.384314, 0, 1)
 
 [node name="Greybox" type="Node3D"]
 script = ExtResource("2_level")
@@ -29,6 +32,7 @@ script = ExtResource("2_level")
 environment = SubResource("Environment_env")
 
 [node name="Sun" type="DirectionalLight3D" parent="."]
+sky_mode = 1
 rotation_degrees = Vector3(-55, 30, 0)
 shadow_enabled = true
 
