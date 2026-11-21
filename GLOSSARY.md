@@ -92,6 +92,10 @@ _Avoid_: Forward (alone), track direction
 One piece of the **Course**, built by hand, holding one or more obstacles.
 _Avoid_: Chunk, tile, segment, room
 
+**Difficulty**:
+How hard a **Section** is, from 1 to 5. Harder Sections begin to appear further along the **Course**, and easier ones keep appearing after them.
+_Avoid_: Level, tier (alone), hardness
+
 **Attempt**:
 One go along the **Course**, from its start until the **Runner** falls or **Stalls**.
 _Avoid_: Run (that's moving on the ground), round, life, try
@@ -129,9 +133,33 @@ A bar too low to run under standing, which the **Runner** must **Crouch** or **S
 _Avoid_: Low ceiling, beam, duck bar
 
 **Gap**:
-A stretch of the **Course** with no floor, which the **Runner** must jump across.
+A stretch of the **Course** with no floor, which the **Runner** must jump across. It comes in three sizes, by the speed needed to jump it: a **Short gap**, a **Long gap** and a **Wide gap**.
 _Avoid_: Pit, hole, chasm
+
+**Short gap**:
+A **Gap** the **Runner** can jump at **Run speed**.
+_Avoid_: Small gap
+
+**Long gap**:
+A **Gap** too long to jump at **Run speed**, which needs the speed a **Slide** begins with.
+_Avoid_: Big gap
+
+**Wide gap**:
+A **Gap** too long to jump with the speed a **Slide** begins with, which the **Runner** can only jump after Sliding down a **Slope** that runs right to its edge.
+_Avoid_: Huge gap, slope gap
+
+**Slope**:
+A downhill stretch of the **Course** that the **Runner** **Slides** down to gain speed.
+_Avoid_: Ramp, hill
 
 **Wall-run gap**:
 A **Gap** too long to jump, with a wall alongside that the **Runner** **Wall-runs** to cross it.
 _Avoid_: Wall gap, wall-run section
+
+**Chimney**:
+Two facing walls along the **Course**, close enough together that the **Runner** reaches the other wall still rising. It climbs by **Wall-jumping** back and forth between them up to a ledge too high to **Mantle** from below, over a **Gap** it falls into if it fails.
+_Avoid_: Wall climb, shaft
+
+**Wall-jump gap**:
+A **Gap** with short walls alternating sides along it, none long enough to cross on one **Wall-run**, so the **Runner** **Wall-jumps** from each wall to the next.
+_Avoid_: Zigzag, wall chain
