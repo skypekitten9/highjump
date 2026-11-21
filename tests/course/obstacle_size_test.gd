@@ -407,6 +407,91 @@ func test_no_wall_of_a_wall_jump_gap_is_long_enough_to_cross_it_on_one_wall_run(
 			assert_float(reach).override_failure_message(message).is_less(length)
 
 
+func test_each_chimney_has_floor_into_it_then_a_gap_under_it_up_to_its_platform() -> void:
+	var chimneys := _obstacles(await _lay_all(), Chimney)
+	assert_int(chimneys.size()).is_greater_equal(1)
+	for chimney: Node3D in chimneys:
+		var shape := _chimney_shape(chimney)
+		var no_floor := "%s has no floor running into it" % _named(chimney)
+		assert_float(shape.x).override_failure_message(no_floor).is_greater(GAP_PROBE_STEP * 1.5)
+		var no_gap := "%s has no Gap under it beyond its floor" % _named(chimney)
+		assert_float(shape.y - shape.x).override_failure_message(no_gap).is_greater(
+			GAP_PROBE_STEP * 1.5,
+		)
+		var no_platform := "%s has no platform at its end" % _named(chimney)
+		assert_bool(is_finite(shape.y)).override_failure_message(no_platform).is_true()
+
+
+func test_each_chimney_ends_at_a_platform_beyond_mantle_reach_of_jump_height() -> void:
+	var chimneys := _obstacles(await _lay_all(), Chimney)
+	assert_int(chimneys.size()).is_greater_equal(1)
+	for chimney: Node3D in chimneys:
+		var message := "%s ends at a platform within Mantle reach of jump height" % _named(chimney)
+		var reach := _jump_height() + _tuning.mantle_reach
+		assert_float(_chimney_shape(chimney).z).override_failure_message(message).is_greater(reach)
+
+
+func test_each_chimney_is_narrow_enough_that_a_wall_jump_reaches_the_far_wall_rising() -> void:
+	var chimneys := _obstacles(await _lay_all(), Chimney)
+	assert_int(chimneys.size()).is_greater_equal(1)
+	var launch := sqrt(2.0 * _tuning.gravity * _tuning.jump_height)
+	for chimney: Node3D in chimneys:
+		var width := _chimney_width(chimney)
+		var crossing := (width - 2.0 * RUNNER_RADIUS) / _tuning.wall_jump_push
+		var message := "%s is %.2f m wide: a Wall-jump reaches the far wall falling" % [
+			_named(chimney),
+			width,
+		]
+		var rising := launch - _tuning.gravity * crossing
+		assert_float(rising).override_failure_message(message).is_greater(0.0)
+
+
+## The shape of [param chimney] down its middle from its marker, m: how far its floor runs into
+## it, where the floor resumes at its platform (INF if it never does), and how high the platform
+## is above the marker.
+func _chimney_shape(chimney: Node3D) -> Vector3:
+	var ahead := -chimney.global_basis.z
+	var along := 0.0
+	while not is_nan(_floor_height(chimney, chimney.global_position + ahead * along)):
+		along += GAP_PROBE_STEP
+		if along >= PROBE_REACH:
+			return Vector3(along, INF, NAN)
+	var floor_end := along
+	while along < PROBE_REACH:
+		var height := _floor_height(chimney, chimney.global_position + ahead * along)
+		if not is_nan(height):
+			return Vector3(floor_end, along, height - chimney.global_position.y)
+		along += GAP_PROBE_STEP
+	return Vector3(floor_end, INF, NAN)
+
+
+## The widest [param chimney] gets between its two walls, probed across its middle from just past
+## its marker to its platform, from the Runner's middle height up to the platform's top, m. INF
+## where a wall is missing on either side.
+func _chimney_width(chimney: Node3D) -> float:
+	var shape := _chimney_shape(chimney)
+	if not is_finite(shape.y):
+		return INF
+	var ahead := -chimney.global_basis.z
+	var across := chimney.global_basis.x
+	var widest := 0.0
+	var along := SLOPE_PROBE_STEP
+	while along < shape.y:
+		var height := STANDING_HEIGHT / 2.0
+		while height <= shape.z:
+			var middle := chimney.global_position + ahead * along + Vector3.UP * height
+			var width := 0.0
+			for look: float in [-1.0, 1.0]:
+				var hit := _cast(chimney, middle, middle + across * look * Section.WIDTH / 2.0)
+				if hit.is_empty():
+					return INF
+				width += middle.distance_to(hit["position"] as Vector3)
+			widest = maxf(widest, width)
+			height += STANDING_HEIGHT / 2.0
+		along += SLOPE_PROBE_STEP
+	return widest
+
+
 ## The walls alongside [param gap], probed at the height of the Runner's middle down the middle of
 ## the Gap, in order along it: for each, the side it is on (-1 left, 1 right), and where along
 ## the Gap it starts and ends, m.

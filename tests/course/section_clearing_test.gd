@@ -22,6 +22,7 @@ const WALL_JUMP_GAP := "res://course/sections/wall_jump_gap.tscn"
 const LONG_GAP_WALL_JUMP_GAP := "res://course/sections/long_gap_wall_jump_gap.tscn"
 const WALL_RUN_TO_MANTLE := "res://course/sections/wall_run_to_mantle.tscn"
 const SLIDE_HOP_CHAIN := "res://course/sections/slide_hop_chain.tscn"
+const CHIMNEY_SLOPE_WIDE_GAP := "res://course/sections/chimney_slope_wide_gap.tscn"
 
 
 func after_test() -> void:
@@ -107,6 +108,24 @@ func _wall_jumps_across(edge: float) -> Array[Step]:
 		toward = away
 		away = turned
 	steps.append(Step.new(edge + 22.0, away, false))
+	return steps
+
+
+## The moves that climb the Chimney of the Chimney Section: run in along the wall on the left and
+## jump onto it, then Wall-jump to the other wall, turning toward it, three times, landing on the
+## platform beyond.
+func _wall_jumps_up_the_chimney() -> Array[Step]:
+	var steps: Array[Step] = [Step.new(8.2, &"move_left"), Step.new(9.3, &"jump")]
+	var toward := &"move_right"
+	var away := &"move_left"
+	for at: float in [10.2, 12.5, 15.5]:
+		steps.append_array(
+			[Step.new(at, away, false), Step.new(at, toward), Step.new(at + 0.1, &"jump")]
+		)
+		var turned := toward
+		toward = away
+		away = turned
+	steps.append(Step.new(20.0, away, false))
 	return steps
 
 
@@ -353,3 +372,26 @@ func test_running_down_the_slopes_instead_of_sliding_falls_into_the_wide_gap() -
 		Step.new(23.85, &"jump"),
 	]
 	assert_bool(await _attempt(SLIDE_HOP_CHAIN, steps)).is_false()
+
+
+func test_wall_running_one_wall_of_the_chimney_falls_into_the_gap_under_it() -> void:
+	var steps: Array[Step] = [
+		Step.new(8.2, &"move_left"),
+		Step.new(9.3, &"jump"),
+		Step.new(20.0, &"move_left", false),
+	]
+	assert_bool(await _attempt(CHIMNEY_SLOPE_WIDE_GAP, steps)).is_false()
+
+
+func test_wall_jumping_up_the_chimney_then_sliding_down_the_slope_clears_the_wide_gap() -> void:
+	var steps := _wall_jumps_up_the_chimney()
+	steps.append_array(
+		[Step.new(20.0, &"crouch"), Step.new(36.6, &"jump"), Step.new(40.0, &"crouch", false)],
+	)
+	assert_bool(await _attempt(CHIMNEY_SLOPE_WIDE_GAP, steps)).is_true()
+
+
+func test_wall_jumping_up_the_chimney_then_running_down_the_slope_falls_into_the_wide_gap() -> void:
+	var steps := _wall_jumps_up_the_chimney()
+	steps.append(Step.new(36.6, &"jump"))
+	assert_bool(await _attempt(CHIMNEY_SLOPE_WIDE_GAP, steps)).is_false()
