@@ -171,3 +171,11 @@ func test_every_ui_colour_in_the_hud_and_end_screen_is_a_palette_colour() -> voi
 				_assert_on_palette(rect.color, "%s background" % _named(rect))
 				checked += 1
 	assert_int(checked).is_greater_equal(1)
+
+
+## The boot splash follows the web shell's loading bar (web/shell.html), so it's a plain palette
+## colour with no image.
+func test_the_boot_splash_is_a_plain_palette_colour() -> void:
+	var colour: Color = ProjectSettings.get_setting("application/boot_splash/bg_color")
+	_assert_on_palette(colour, "The boot splash background")
+	assert_bool(ProjectSettings.get_setting("application/boot_splash/show_image")).is_false()
