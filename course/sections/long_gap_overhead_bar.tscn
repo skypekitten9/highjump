@@ -8,7 +8,7 @@
 
 [node name="LongGapOverheadBar" type="Node3D"]
 script = ExtResource("1_section")
-length = 30.0
+length = 34.0
 difficulty = 3
 
 [node name="FloorBefore" type="CSGBox3D" parent="."]
@@ -23,13 +23,13 @@ script = ExtResource("2_gap")
 size = 1
 
 [node name="FloorAfter" type="CSGBox3D" parent="."]
-position = Vector3(0, -0.5, -24.75)
+position = Vector3(0, -0.5, -26.75)
 use_collision = true
-size = Vector3(8, 1, 10.5)
+size = Vector3(8, 1, 14.5)
 material = ExtResource("4_floor_material")
 
 [node name="OverheadBar" type="CSGBox3D" parent="."]
-position = Vector3(0, 2.3, -21.5)
+position = Vector3(0, 2.3, -25.5)
 use_collision = true
 size = Vector3(8, 2, 1)
 material = ExtResource("5_obstacle_material")

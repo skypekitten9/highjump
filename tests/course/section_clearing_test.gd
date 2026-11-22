@@ -42,6 +42,9 @@ const BLOCK_LONG_GAP_WALL_RUN_GAP := "res://course/sections/block_long_gap_wall_
 const HURDLE_SHORT_GAP_OVERHEAD_BAR := "res://course/sections/hurdle_short_gap_overhead_bar.tscn"
 ## A Long gap, then an Overhead bar.
 const LONG_GAP_OVERHEAD_BAR := "res://course/sections/long_gap_overhead_bar.tscn"
+## Where a Runner that landed standing beyond the Long gap, before the Overhead bar, crouches to
+## Slide under it, m along: once it has surely landed, with time to spare before the bar.
+const LONG_GAP_OVERHEAD_BAR_LANDED := 21.5
 ## A Block, then a Wall-run gap jumped from its top.
 const BLOCK_WALL_RUN_GAP := "res://course/sections/block_wall_run_gap.tscn"
 ## The Wall-jump gap Section.
@@ -60,9 +63,10 @@ const CHIMNEY_SLOPE_WIDE_GAP := "res://course/sections/chimney_slope_wide_gap.ts
 const WALL_JUMP_GAP_TURN_IN := -0.6
 const WALL_JUMP_GAP_TAKE_OFF := -0.1
 ## The turns toward each next wall across the Wall-jump gap, m from its near edge.
-const WALL_JUMP_GAP_TURNS: Array[float] = [1.4, 5.3, 10.6]
-## Where the turn toward the last wall of the Wall-jump gap is let go, m from its near edge.
-const WALL_JUMP_GAP_LET_GO := 22.0
+const WALL_JUMP_GAP_TURNS: Array[float] = [5.5, 13.0, 20.5]
+## Where the turn toward the last wall of the Wall-jump gap is let go, m from its near edge: once
+## the Runner is over the floor beyond, which the last wall runs on beside.
+const WALL_JUMP_GAP_LET_GO := 30.0
 ## How far along the Wall-jump gap Section its near edge is, m.
 const WALL_JUMP_GAP_EDGE := 8.0
 ## How far along the Long gap then Wall-jump gap Section the Wall-jump gap's near edge is, m.
@@ -71,7 +75,7 @@ const LONG_GAP_WALL_JUMP_GAP_EDGE := 24.0
 const WALL_JUMP_GAP_FAST_ENTRY := 11.0
 ## The turns toward each next wall across the Wall-jump gap for a fast Runner, m from its near
 ## edge: it reaches each wall further along.
-const WALL_JUMP_GAP_FAST_TURNS: Array[float] = [1.6, 6.1, 11.1]
+const WALL_JUMP_GAP_FAST_TURNS: Array[float] = [6.0, 13.5, 21.0]
 
 ## Where the moves up the Chimney fall, m along the Chimney Section: the turn toward its wall on
 ## the left, early enough that the Runner has always finished turning, and the jump onto it.
@@ -348,7 +352,18 @@ func test_slide_jumping_the_long_gap_and_slide_hopping_under_the_bar_clears_them
 	var steps: Array[Step] = [
 		Step.new(7.0, &"crouch"),
 		Step.new(11.6, &"jump"),
-		Step.new(25.0, &"crouch", false),
+		Step.new(29.0, &"crouch", false),
+	]
+	assert_bool(await _attempt(LONG_GAP_OVERHEAD_BAR, steps)).is_true()
+
+
+func test_landing_standing_beyond_the_long_gap_then_sliding_under_the_bar_clears_them() -> void:
+	var steps: Array[Step] = [
+		Step.new(7.0, &"crouch"),
+		Step.new(11.6, &"jump"),
+		Step.new(13.0, &"crouch", false),
+		Step.new(LONG_GAP_OVERHEAD_BAR_LANDED, &"crouch"),
+		Step.new(29.0, &"crouch", false),
 	]
 	assert_bool(await _attempt(LONG_GAP_OVERHEAD_BAR, steps)).is_true()
 

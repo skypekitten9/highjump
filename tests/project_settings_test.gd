@@ -29,3 +29,12 @@ func test_crouch_is_bound_to_left_ctrl_and_c() -> void:
 func test_the_course_is_the_main_scene() -> void:
 	var main_scene: String = ProjectSettings.get_setting("application/run/main_scene")
 	assert_str(ResourceUID.ensure_path(main_scene)).is_equal("res://course/course.tscn")
+
+
+func test_all_ui_text_is_in_the_crisp_pixel_font() -> void:
+	var path: String = ProjectSettings.get_setting("gui/theme/custom_font")
+	assert_str(ResourceUID.ensure_path(path)).is_equal("res://fonts/Silkscreen-Regular.ttf")
+	var font: FontFile = load(path)
+	assert_int(font.antialiasing).is_equal(TextServer.FONT_ANTIALIASING_NONE)
+	assert_int(font.hinting).is_equal(TextServer.HINTING_NONE)
+	assert_int(font.subpixel_positioning).is_equal(TextServer.SUBPIXEL_POSITIONING_DISABLED)
